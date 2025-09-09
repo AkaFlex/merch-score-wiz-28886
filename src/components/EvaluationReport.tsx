@@ -54,23 +54,83 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
     });
 
   const exportToCSV = () => {
-    const headers = ['Nome da Foto', 'Nota Final', 'Critérios Fora do Padrão'];
-    const rows = photos.map(photo => [
-      photo.name,
-      (photo.evaluation?.score || 10).toFixed(1),
-      photo.evaluation?.criteria.join('; ') || 'Nenhum'
-    ]);
+    // Define all criteria columns
+    const criteriaColumns = [
+      'Buraco na Sessão',
+      'Agrupamento', 
+      'Alinhamento',
+      'Cores e Padrão da Categoria',
+      'Precificação',
+      'Limpeza',
+      'Qualidade de Foto',
+      'Poluição Visual',
+      'Posicionamento na Gôndola',
+      'Avaria',
+      'Espaçamento',
+      'Fora de Layout'
+    ];
 
+    // Create headers
+    const headers = [
+      'Nome da Foto',
+      'Nota Final',
+      'Status',
+      'Total de Problemas',
+      ...criteriaColumns,
+      'Resumo dos Problemas'
+    ];
+
+    // Create rows with individual criterion columns
+    const rows = photos.map(photo => {
+      const score = photo.evaluation?.score || 10;
+      const criteria = photo.evaluation?.criteria || [];
+      
+      const getStatus = (score: number) => {
+        if (score >= 9) return 'Excelente';
+        if (score >= 7) return 'Bom';
+        return 'Precisa Atenção';
+      };
+
+      const row = [
+        photo.name,
+        score.toFixed(1),
+        getStatus(score),
+        criteria.length.toString(),
+        ...criteriaColumns.map(criterion => criteria.includes(criterion) ? 'X' : ''),
+        criteria.length > 0 ? criteria.join('; ') : 'Nenhum problema'
+      ];
+
+      return row;
+    });
+
+    // Add summary statistics at the end
+    const summaryRows = [
+      [],
+      ['RESUMO ESTATÍSTICO'],
+      ['Total de Fotos', totalPhotos.toString()],
+      ['Média Geral', averageScore.toFixed(1)],
+      ['Fotos Excelentes (≥9.0)', excellentCount.toString()],
+      ['Fotos Boas (7.0-8.9)', (photos.filter(p => (p.evaluation?.score || 10) >= 7 && (p.evaluation?.score || 10) < 9).length).toString()],
+      ['Fotos que Precisam Atenção (<7.0)', attentionCount.toString()],
+      [],
+      ['PROBLEMAS MAIS FREQUENTES'],
+      ...topIssues.map(([criterion, count]) => [criterion, `${count} occorrências`])
+    ];
+
+    // Create CSV content with proper escaping
     const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(field => `"${field}"`).join(','))
+      headers.map(h => `"${h}"`).join(','),
+      ...rows.map(row => row.map(field => `"${field.toString().replace(/"/g, '""')}"`).join(',')),
+      ...summaryRows.map(row => row.map(field => `"${field.toString().replace(/"/g, '""')}"`).join(','))
     ].join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    // Create and download file with BOM for Excel compatibility
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
-    link.setAttribute('download', `relatorio-merchandising-${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `relatorio-merchandising-detalhado-${new Date().toISOString().split('T')[0]}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
