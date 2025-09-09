@@ -73,6 +73,7 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
     // Create headers
     const headers = [
       'Nome da Foto',
+      'Responsável',
       'Nota Final',
       'Status',
       'Total de Problemas',
@@ -80,7 +81,7 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
       'Resumo dos Problemas'
     ];
 
-    // Create rows with individual criterion columns
+      // Create rows with individual criterion columns
     const rows = photos.map(photo => {
       const score = photo.evaluation?.score || 10;
       const criteria = photo.evaluation?.criteria || [];
@@ -93,6 +94,7 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
 
       const row = [
         photo.name,
+        photo.promoter || 'Não Atribuído',
         score.toFixed(1),
         getStatus(score),
         criteria.length.toString(),

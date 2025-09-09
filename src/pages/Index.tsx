@@ -1,10 +1,13 @@
 import { useState } from 'react';
-import { Upload, FileImage, BarChart3, Download } from 'lucide-react';
+import { Upload, FileImage, BarChart3, Download, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { PhotoUpload } from '@/components/PhotoUpload';
 import { PhotoEvaluation } from '@/components/PhotoEvaluation';
 import { EvaluationReport } from '@/components/EvaluationReport';
+import { PromoterManagement } from '@/components/PromoterManagement';
+import { PromoterAssignment } from '@/components/PromoterAssignment';
+import { ReportSummary } from '@/components/ReportSummary';
 
 export interface Photo {
   id: string;
@@ -14,11 +17,13 @@ export interface Photo {
     score: number;
     criteria: string[];
   };
+  promoter?: string;
 }
 
 const Index = () => {
   const [photos, setPhotos] = useState<Photo[]>([]);
-  const [currentStep, setCurrentStep] = useState<'upload' | 'evaluate' | 'report'>('upload');
+  const [promoters, setPromoters] = useState<string[]>([]);
+  const [currentStep, setCurrentStep] = useState<'upload' | 'evaluate' | 'assign' | 'report'>('upload');
 
   const handlePhotosUpload = (uploadedPhotos: Photo[]) => {
     setPhotos(uploadedPhotos);
@@ -27,11 +32,16 @@ const Index = () => {
 
   const handleEvaluationComplete = (evaluatedPhotos: Photo[]) => {
     setPhotos(evaluatedPhotos);
+    setCurrentStep('assign');
+  };
+
+  const handleAssignmentComplete = () => {
     setCurrentStep('report');
   };
 
   const resetProcess = () => {
     setPhotos([]);
+    setPromoters([]);
     setCurrentStep('upload');
   };
 
@@ -41,6 +51,34 @@ const Index = () => {
         return <PhotoUpload onPhotosUpload={handlePhotosUpload} />;
       case 'evaluate':
         return <PhotoEvaluation photos={photos} onComplete={handleEvaluationComplete} />;
+      case 'assign':
+        return (
+          <div className="max-w-7xl mx-auto space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <PromoterManagement
+                promoters={promoters}
+                onPromotersChange={setPromoters}
+              />
+              <div className="lg:col-span-2">
+                <ReportSummary photos={photos} />
+              </div>
+            </div>
+            <PromoterAssignment
+              photos={photos}
+              promoters={promoters}
+              onPhotosUpdate={setPhotos}
+            />
+            <div className="flex justify-center">
+              <Button 
+                onClick={handleAssignmentComplete}
+                size="lg"
+                className="bg-gradient-to-r from-primary to-primary-glow hover:from-primary/90 hover:to-primary-glow/90"
+              >
+                Gerar Relatório Final
+              </Button>
+            </div>
+          </div>
+        );
       case 'report':
         return <EvaluationReport photos={photos} onReset={resetProcess} />;
       default:
@@ -75,10 +113,18 @@ const Index = () => {
               
               <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
                 currentStep === 'evaluate' ? 'bg-primary text-primary-foreground' : 
-                currentStep === 'report' ? 'bg-success text-success-foreground' : 'bg-muted text-muted-foreground'
+                ['assign', 'report'].includes(currentStep) ? 'bg-success text-success-foreground' : 'bg-muted text-muted-foreground'
               }`}>
                 <BarChart3 className="w-4 h-4" />
                 <span>Avaliar</span>
+              </div>
+
+              <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+                currentStep === 'assign' ? 'bg-primary text-primary-foreground' : 
+                currentStep === 'report' ? 'bg-success text-success-foreground' : 'bg-muted text-muted-foreground'
+              }`}>
+                <Users className="w-4 h-4" />
+                <span>Atribuir</span>
               </div>
               
               <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
