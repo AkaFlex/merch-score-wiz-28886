@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { UserCheck, Check, X } from 'lucide-react';
+import { UserCheck, Check, X, ZoomIn } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -16,6 +16,7 @@ interface PromoterAssignmentProps {
 export const PromoterAssignment = ({ photos, promoters, onPhotosUpdate }: PromoterAssignmentProps) => {
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
   const [selectedPromoter, setSelectedPromoter] = useState('');
+  const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
 
   const togglePhotoSelection = (photoId: string) => {
     setSelectedPhotos(prev =>
@@ -146,6 +147,17 @@ export const PromoterAssignment = ({ photos, promoters, onPhotosUpdate }: Promot
                       </Badge>
                     </div>
 
+                    {/* Zoom button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedPhoto(photo);
+                      }}
+                      className="absolute bottom-2 right-2 z-10 bg-background/80 backdrop-blur-sm rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <ZoomIn className="w-3 h-3" />
+                    </button>
+
                     {/* Photo */}
                     <div className="aspect-square bg-muted rounded-lg overflow-hidden border border-border">
                       <img 
@@ -222,6 +234,14 @@ export const PromoterAssignment = ({ photos, promoters, onPhotosUpdate }: Promot
                                 <X className="w-3 h-3" />
                               </button>
 
+                              {/* Zoom button */}
+                              <button
+                                onClick={() => setSelectedPhoto(photo)}
+                                className="absolute bottom-2 right-2 z-10 bg-background/80 backdrop-blur-sm rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <ZoomIn className="w-3 h-3" />
+                              </button>
+
                               {/* Photo */}
                               <div className="aspect-square bg-muted rounded-lg overflow-hidden border border-border">
                                 <img 
@@ -245,6 +265,62 @@ export const PromoterAssignment = ({ photos, promoters, onPhotosUpdate }: Promot
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Photo Modal */}
+      {selectedPhoto && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="relative max-w-4xl max-h-[90vh] bg-background rounded-lg overflow-hidden">
+            <div className="absolute top-4 right-4 z-10">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedPhoto(null)}
+                className="bg-background/90 backdrop-blur-sm"
+              >
+                ✕
+              </Button>
+            </div>
+            
+            <div className="relative">
+              <img 
+                src={selectedPhoto.url} 
+                alt={selectedPhoto.name}
+                className="w-full h-auto max-h-[70vh] object-contain"
+              />
+              
+              <div className="absolute top-4 left-4 bg-black/70 text-white px-3 py-2 rounded-lg">
+                <div className="text-lg font-bold">
+                  Nota: {(selectedPhoto.evaluation?.score || 10).toFixed(1)}
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-6 bg-background">
+              <h3 className="text-xl font-bold mb-2">{selectedPhoto.name}</h3>
+              <p className="text-muted-foreground mb-4">
+                Promoter: {selectedPhoto.promoter || 'Não Atribuído'}
+              </p>
+              
+              {selectedPhoto.evaluation?.criteria && selectedPhoto.evaluation.criteria.length > 0 ? (
+                <div>
+                  <h4 className="font-semibold mb-2">Problemas Identificados:</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedPhoto.evaluation.criteria.map((criterion) => (
+                      <Badge key={criterion} variant="destructive">
+                        {criterion}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-success font-medium">
+                  ✓ Nenhum problema identificado
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

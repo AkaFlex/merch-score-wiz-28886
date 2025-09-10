@@ -249,25 +249,37 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
           img.src = photo.url;
         });
         
-        // Add text details
+        // Add text details with proper width management
         pdf.setFontSize(12);
         const textX = margin + maxImageWidth + 10;
-        pdf.text(`Nome: ${photo.name}`, textX, currentY + 15);
-        pdf.text(`Promoter: ${photo.promoter || 'Não Atribuído'}`, textX, currentY + 25);
-        pdf.text(`Nota: ${score.toFixed(1)}`, textX, currentY + 35);
+        const maxTextWidth = pageWidth - textX - margin;
+        
+        // Split long text to avoid overflow
+        const nameLines = pdf.splitTextToSize(`Nome: ${photo.name}`, maxTextWidth);
+        const promoterLines = pdf.splitTextToSize(`Promoter: ${photo.promoter || 'Não Atribuído'}`, maxTextWidth);
+        
+        let textY = currentY + 15;
+        pdf.text(nameLines, textX, textY);
+        textY += nameLines.length * 5 + 5;
+        
+        pdf.text(promoterLines, textX, textY);
+        textY += promoterLines.length * 5 + 5;
+        
+        pdf.text(`Nota: ${score.toFixed(1)}`, textX, textY);
+        textY += 10;
         
         const problems = photo.evaluation?.criteria || [];
         if (problems.length > 0) {
-          pdf.text('Problemas:', textX, currentY + 50);
-          problems.forEach((problem, idx) => {
-            const line = `• ${problem}`;
-            // Handle long text by wrapping
-            const maxWidth = pageWidth - textX - margin;
-            const lines = pdf.splitTextToSize(line, maxWidth);
-            pdf.text(lines, textX, currentY + 60 + (idx * 10));
+          pdf.text('Problemas:', textX, textY);
+          textY += 8;
+          
+          problems.forEach((problem) => {
+            const problemLines = pdf.splitTextToSize(`• ${problem}`, maxTextWidth);
+            pdf.text(problemLines, textX, textY);
+            textY += problemLines.length * 5 + 2;
           });
         } else {
-          pdf.text('✓ Nenhum problema identificado', textX, currentY + 50);
+          pdf.text('✓ Nenhum problema identificado', textX, textY);
         }
         
         currentY += maxImageHeight + 25;
