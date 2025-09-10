@@ -158,8 +158,8 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
     
     let currentY = 20;
     const margin = 20;
-    const imageWidth = 80;
-    const imageHeight = 60;
+    const maxImageWidth = 120;
+    const maxImageHeight = 90;
     
     // Add title
     pdf.setFontSize(20);
@@ -171,70 +171,111 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
       const score = photo.evaluation?.score || 10;
       
       // Check if we need a new page
-      if (currentY + imageHeight + 30 > pageHeight - margin) {
+      if (currentY + maxImageHeight + 30 > pageHeight - margin) {
         pdf.addPage();
         currentY = 20;
       }
       
       try {
-        // Create canvas with photo and score overlay
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = 400;
-        canvas.height = 300;
-        
         const img = new Image();
         img.crossOrigin = 'anonymous';
         
         await new Promise((resolve) => {
           img.onload = () => {
-            // Draw image
-            ctx?.drawImage(img, 0, 0, 400, 300);
+            // Calculate proper aspect ratio
+            const imgAspectRatio = img.naturalWidth / img.naturalHeight;
+            let canvasWidth = 800;
+            let canvasHeight = 600;
             
-            // Draw score overlay
+            // Adjust canvas size to maintain aspect ratio
+            if (imgAspectRatio > 1) {
+              canvasHeight = canvasWidth / imgAspectRatio;
+            } else {
+              canvasWidth = canvasHeight * imgAspectRatio;
+            }
+            
+            // Create canvas with proper dimensions
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+            
             if (ctx) {
+              // Fill background with white to avoid transparency issues
+              ctx.fillStyle = 'white';
+              ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+              
+              // Draw image maintaining aspect ratio
+              ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
+              
+              // Draw score overlay with better positioning
+              const overlayHeight = Math.max(60, canvasHeight * 0.12);
+              ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+              ctx.fillRect(0, 0, canvasWidth, overlayHeight);
+              
+              // Score text
+              ctx.fillStyle = 'white';
+              const fontSize = Math.max(24, canvasWidth * 0.04);
+              ctx.font = `bold ${fontSize}px Arial`;
+              ctx.fillText(`Nota: ${score.toFixed(1)}`, canvasWidth * 0.03, overlayHeight * 0.6);
+              
+              // Photo info at bottom
+              const bottomOverlayHeight = Math.max(40, canvasHeight * 0.08);
               ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-              ctx.fillRect(0, 0, 400, 60);
+              ctx.fillRect(0, canvasHeight - bottomOverlayHeight, canvasWidth, bottomOverlayHeight);
               
               ctx.fillStyle = 'white';
-              ctx.font = 'bold 24px Arial';
-              ctx.fillText(`Nota: ${score.toFixed(1)}`, 20, 40);
-              
-              ctx.font = '16px Arial';
-              ctx.fillText(photo.name, 20, 280);
-              ctx.fillText(`Promoter: ${photo.promoter || 'Não Atribuído'}`, 20, 250);
+              const smallFontSize = Math.max(16, canvasWidth * 0.025);
+              ctx.font = `${smallFontSize}px Arial`;
+              ctx.fillText(photo.name, canvasWidth * 0.03, canvasHeight - bottomOverlayHeight * 0.3);
             }
+            
+            // Calculate PDF image dimensions maintaining aspect ratio
+            let pdfImageWidth = maxImageWidth;
+            let pdfImageHeight = maxImageHeight;
+            
+            if (imgAspectRatio > maxImageWidth / maxImageHeight) {
+              pdfImageHeight = maxImageWidth / imgAspectRatio;
+            } else {
+              pdfImageWidth = maxImageHeight * imgAspectRatio;
+            }
+            
+            // Add image to PDF with proper quality
+            const imgData = canvas.toDataURL('image/jpeg', 0.95);
+            pdf.addImage(imgData, 'JPEG', margin, currentY, pdfImageWidth, pdfImageHeight);
+            
             resolve(void 0);
           };
           img.src = photo.url;
         });
         
-        // Add image to PDF
-        const imgData = canvas.toDataURL('image/jpeg', 0.8);
-        pdf.addImage(imgData, 'JPEG', margin, currentY, imageWidth, imageHeight);
-        
         // Add text details
         pdf.setFontSize(12);
-        pdf.text(`Nome: ${photo.name}`, margin + imageWidth + 10, currentY + 10);
-        pdf.text(`Promoter: ${photo.promoter || 'Não Atribuído'}`, margin + imageWidth + 10, currentY + 20);
-        pdf.text(`Nota: ${score.toFixed(1)}`, margin + imageWidth + 10, currentY + 30);
+        const textX = margin + maxImageWidth + 10;
+        pdf.text(`Nome: ${photo.name}`, textX, currentY + 15);
+        pdf.text(`Promoter: ${photo.promoter || 'Não Atribuído'}`, textX, currentY + 25);
+        pdf.text(`Nota: ${score.toFixed(1)}`, textX, currentY + 35);
         
         const problems = photo.evaluation?.criteria || [];
         if (problems.length > 0) {
-          pdf.text('Problemas:', margin + imageWidth + 10, currentY + 40);
+          pdf.text('Problemas:', textX, currentY + 50);
           problems.forEach((problem, idx) => {
-            pdf.text(`• ${problem}`, margin + imageWidth + 10, currentY + 50 + (idx * 8));
+            const line = `• ${problem}`;
+            // Handle long text by wrapping
+            const maxWidth = pageWidth - textX - margin;
+            const lines = pdf.splitTextToSize(line, maxWidth);
+            pdf.text(lines, textX, currentY + 60 + (idx * 10));
           });
         } else {
-          pdf.text('Nenhum problema identificado', margin + imageWidth + 10, currentY + 40);
+          pdf.text('✓ Nenhum problema identificado', textX, currentY + 50);
         }
         
-        currentY += imageHeight + 20;
+        currentY += maxImageHeight + 25;
         
       } catch (error) {
         console.error('Error processing image:', error);
         // Continue with next image
-        currentY += imageHeight + 20;
+        currentY += maxImageHeight + 25;
       }
     }
     
