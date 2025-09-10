@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Download, FileSpreadsheet, RotateCcw, Eye, Filter, TrendingUp, TrendingDown } from 'lucide-react';
+import { Download, FileSpreadsheet, RotateCcw, Eye, Filter, TrendingUp, TrendingDown, FileImage, ZoomIn } from 'lucide-react';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +18,7 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'score'>('score');
   const [filterBy, setFilterBy] = useState<'all' | 'excellent' | 'good' | 'attention'>('all');
+  const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
 
   // Calculate statistics
   const totalPhotos = photos.length;
@@ -70,18 +73,18 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
       'Fora de Layout'
     ];
 
-    // Create headers
+    // Create headers - each criterion as separate column
     const headers = [
       'Nome da Foto',
       'Responsável',
       'Nota Final',
       'Status',
       'Total de Problemas',
-      ...criteriaColumns,
-      'Resumo dos Problemas'
+      ...criteriaColumns.map(c => `Problema: ${c}`),
+      'Lista de Problemas'
     ];
 
-      // Create rows with individual criterion columns
+    // Create rows with individual criterion columns
     const rows = photos.map(photo => {
       const score = photo.evaluation?.score || 10;
       const criteria = photo.evaluation?.criteria || [];
@@ -92,38 +95,47 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
         return 'Precisa Atenção';
       };
 
+      // Create row with proper separation
       const row = [
         photo.name,
         photo.promoter || 'Não Atribuído',
         score.toFixed(1),
         getStatus(score),
-        criteria.length.toString(),
-        ...criteriaColumns.map(criterion => criteria.includes(criterion) ? 'X' : ''),
-        criteria.length > 0 ? criteria.join('; ') : 'Nenhum problema'
+        criteria.length.toString()
       ];
+
+      // Add individual criterion columns
+      criteriaColumns.forEach(criterion => {
+        row.push(criteria.includes(criterion) ? 'SIM' : 'NÃO');
+      });
+
+      // Add summary column
+      row.push(criteria.length > 0 ? criteria.join(' | ') : 'Nenhum problema');
 
       return row;
     });
 
     // Add summary statistics at the end
     const summaryRows = [
-      [],
+      [''],
       ['RESUMO ESTATÍSTICO'],
+      ['Métrica', 'Valor'],
       ['Total de Fotos', totalPhotos.toString()],
       ['Média Geral', averageScore.toFixed(1)],
       ['Fotos Excelentes (≥9.0)', excellentCount.toString()],
       ['Fotos Boas (7.0-8.9)', (photos.filter(p => (p.evaluation?.score || 10) >= 7 && (p.evaluation?.score || 10) < 9).length).toString()],
       ['Fotos que Precisam Atenção (<7.0)', attentionCount.toString()],
-      [],
+      [''],
       ['PROBLEMAS MAIS FREQUENTES'],
-      ...topIssues.map(([criterion, count]) => [criterion, `${count} occorrências`])
+      ['Problema', 'Ocorrências'],
+      ...topIssues.map(([criterion, count]) => [criterion, count.toString()])
     ];
 
-    // Create CSV content with proper escaping
+    // Create CSV content with proper column separation
     const csvContent = [
-      headers.map(h => `"${h}"`).join(','),
-      ...rows.map(row => row.map(field => `"${field.toString().replace(/"/g, '""')}"`).join(',')),
-      ...summaryRows.map(row => row.map(field => `"${field.toString().replace(/"/g, '""')}"`).join(','))
+      headers.join(';'), // Use semicolon for better Excel separation
+      ...rows.map(row => row.join(';')),
+      ...summaryRows.map(row => row.join(';'))
     ].join('\n');
 
     // Create and download file with BOM for Excel compatibility
@@ -132,11 +144,102 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
-    link.setAttribute('download', `relatorio-merchandising-detalhado-${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `relatorio-merchandising-${new Date().toISOString().split('T')[0]}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const exportToPDF = async () => {
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    
+    let currentY = 20;
+    const margin = 20;
+    const imageWidth = 80;
+    const imageHeight = 60;
+    
+    // Add title
+    pdf.setFontSize(20);
+    pdf.text('Relatório de Merchandising', pageWidth / 2, currentY, { align: 'center' });
+    currentY += 20;
+    
+    for (let i = 0; i < photos.length; i++) {
+      const photo = photos[i];
+      const score = photo.evaluation?.score || 10;
+      
+      // Check if we need a new page
+      if (currentY + imageHeight + 30 > pageHeight - margin) {
+        pdf.addPage();
+        currentY = 20;
+      }
+      
+      try {
+        // Create canvas with photo and score overlay
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 400;
+        canvas.height = 300;
+        
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        
+        await new Promise((resolve) => {
+          img.onload = () => {
+            // Draw image
+            ctx?.drawImage(img, 0, 0, 400, 300);
+            
+            // Draw score overlay
+            if (ctx) {
+              ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+              ctx.fillRect(0, 0, 400, 60);
+              
+              ctx.fillStyle = 'white';
+              ctx.font = 'bold 24px Arial';
+              ctx.fillText(`Nota: ${score.toFixed(1)}`, 20, 40);
+              
+              ctx.font = '16px Arial';
+              ctx.fillText(photo.name, 20, 280);
+              ctx.fillText(`Promoter: ${photo.promoter || 'Não Atribuído'}`, 20, 250);
+            }
+            resolve(void 0);
+          };
+          img.src = photo.url;
+        });
+        
+        // Add image to PDF
+        const imgData = canvas.toDataURL('image/jpeg', 0.8);
+        pdf.addImage(imgData, 'JPEG', margin, currentY, imageWidth, imageHeight);
+        
+        // Add text details
+        pdf.setFontSize(12);
+        pdf.text(`Nome: ${photo.name}`, margin + imageWidth + 10, currentY + 10);
+        pdf.text(`Promoter: ${photo.promoter || 'Não Atribuído'}`, margin + imageWidth + 10, currentY + 20);
+        pdf.text(`Nota: ${score.toFixed(1)}`, margin + imageWidth + 10, currentY + 30);
+        
+        const problems = photo.evaluation?.criteria || [];
+        if (problems.length > 0) {
+          pdf.text('Problemas:', margin + imageWidth + 10, currentY + 40);
+          problems.forEach((problem, idx) => {
+            pdf.text(`• ${problem}`, margin + imageWidth + 10, currentY + 50 + (idx * 8));
+          });
+        } else {
+          pdf.text('Nenhum problema identificado', margin + imageWidth + 10, currentY + 40);
+        }
+        
+        currentY += imageHeight + 20;
+        
+      } catch (error) {
+        console.error('Error processing image:', error);
+        // Continue with next image
+        currentY += imageHeight + 20;
+      }
+    }
+    
+    // Save PDF
+    pdf.save(`relatorio-fotos-merchandising-${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   const getScoreColor = (score: number) => {
@@ -178,8 +281,15 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
                 onClick={exportToCSV}
                 className="bg-gradient-to-r from-success to-success/90 hover:from-success/90 hover:to-success/80"
               >
-                <Download className="w-4 h-4 mr-2" />
+                <FileSpreadsheet className="w-4 h-4 mr-2" />
                 Exportar CSV
+              </Button>
+              <Button 
+                onClick={exportToPDF}
+                className="bg-gradient-to-r from-primary to-primary-glow hover:from-primary/90 hover:to-primary-glow/90"
+              >
+                <FileImage className="w-4 h-4 mr-2" />
+                Exportar PDF
               </Button>
             </div>
           </div>
@@ -316,6 +426,15 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
                   </div>
                   
                   <div className="flex items-center gap-3">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedPhoto(photo)}
+                      className="border-primary/30 hover:border-primary/50"
+                    >
+                      <ZoomIn className="w-4 h-4 mr-2" />
+                      Ver
+                    </Button>
                     <div className={`text-2xl font-bold ${getScoreColor(score)}`}>
                       {score.toFixed(1)}
                     </div>
@@ -332,6 +451,62 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
           </div>
         </CardContent>
       </Card>
+
+      {/* Photo Modal */}
+      {selectedPhoto && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
+          <div className="relative max-w-4xl max-h-[90vh] bg-background rounded-lg overflow-hidden">
+            <div className="absolute top-4 right-4 z-10">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedPhoto(null)}
+                className="bg-background/90 backdrop-blur-sm"
+              >
+                ✕
+              </Button>
+            </div>
+            
+            <div className="relative">
+              <img 
+                src={selectedPhoto.url} 
+                alt={selectedPhoto.name}
+                className="w-full h-auto max-h-[70vh] object-contain"
+              />
+              
+              <div className="absolute top-4 left-4 bg-black/70 text-white px-3 py-2 rounded-lg">
+                <div className="text-lg font-bold">
+                  Nota: {(selectedPhoto.evaluation?.score || 10).toFixed(1)}
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-6 bg-background">
+              <h3 className="text-xl font-bold mb-2">{selectedPhoto.name}</h3>
+              <p className="text-muted-foreground mb-4">
+                Promoter: {selectedPhoto.promoter || 'Não Atribuído'}
+              </p>
+              
+              {selectedPhoto.evaluation?.criteria && selectedPhoto.evaluation.criteria.length > 0 ? (
+                <div>
+                  <h4 className="font-semibold mb-2">Problemas Identificados:</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedPhoto.evaluation.criteria.map((criterion) => (
+                      <Badge key={criterion} variant="destructive">
+                        {criterion}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-success font-medium">
+                  ✓ Nenhum problema identificado
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
