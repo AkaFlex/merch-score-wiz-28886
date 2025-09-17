@@ -24,7 +24,7 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
   const totalPhotos = photos.length;
   const averageScore = photos.reduce((sum, photo) => sum + (photo.evaluation?.score || 10), 0) / totalPhotos;
   const excellentCount = photos.filter(photo => (photo.evaluation?.score || 10) >= 9).length;
-  const attentionCount = photos.filter(photo => (photo.evaluation?.score || 10) < 7).length;
+  const attentionCount = photos.filter(photo => (photo.evaluation?.score || 10) <= 5).length;
 
   // Most common issues
   const allCriteria: { [key: string]: number } = {};
@@ -46,7 +46,7 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
         filterBy === 'all' || 
         (filterBy === 'excellent' && score >= 9) ||
         (filterBy === 'good' && score >= 7 && score < 9) ||
-        (filterBy === 'attention' && score < 7);
+        (filterBy === 'attention' && score <= 5);
       return matchesSearch && matchesFilter;
     })
     .sort((a, b) => {
@@ -124,7 +124,7 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
       ['Média Geral', averageScore.toFixed(1)],
       ['Fotos Excelentes (≥9.0)', excellentCount.toString()],
       ['Fotos Boas (7.0-8.9)', (photos.filter(p => (p.evaluation?.score || 10) >= 7 && (p.evaluation?.score || 10) < 9).length).toString()],
-      ['Fotos que Precisam Atenção (<7.0)', attentionCount.toString()],
+      ['Fotos que Precisam Atenção (≤5.0)', attentionCount.toString()],
       [''],
       ['PROBLEMAS MAIS FREQUENTES'],
       ['Problema', 'Ocorrências'],
@@ -219,7 +219,7 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
               ctx.font = `bold ${fontSize}px Arial`;
               ctx.fillText(`Nota: ${score.toFixed(1)}`, canvasWidth * 0.03, overlayHeight * 0.6);
               
-              // Photo info at bottom
+              // Photo info at bottom - only show promoter name
               const bottomOverlayHeight = Math.max(40, canvasHeight * 0.08);
               ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
               ctx.fillRect(0, canvasHeight - bottomOverlayHeight, canvasWidth, bottomOverlayHeight);
@@ -227,7 +227,7 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
               ctx.fillStyle = 'white';
               const smallFontSize = Math.max(16, canvasWidth * 0.025);
               ctx.font = `${smallFontSize}px Arial`;
-              ctx.fillText(photo.name, canvasWidth * 0.03, canvasHeight - bottomOverlayHeight * 0.3);
+              ctx.fillText(photo.promoter || 'Não Atribuído', canvasWidth * 0.03, canvasHeight - bottomOverlayHeight * 0.3);
             }
             
             // Calculate PDF image dimensions maintaining aspect ratio
@@ -255,12 +255,9 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
         const maxTextWidth = pageWidth - textX - margin;
         
         // Split long text to avoid overflow
-        const nameLines = pdf.splitTextToSize(`Nome: ${photo.name}`, maxTextWidth);
         const promoterLines = pdf.splitTextToSize(`Promoter: ${photo.promoter || 'Não Atribuído'}`, maxTextWidth);
         
         let textY = currentY + 15;
-        pdf.text(nameLines, textX, textY);
-        textY += nameLines.length * 5 + 5;
         
         pdf.text(promoterLines, textX, textY);
         textY += promoterLines.length * 5 + 5;
@@ -384,7 +381,7 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
         <Card className="shadow-card border-0 bg-gradient-to-br from-destructive/5 to-destructive/10 border-destructive/20">
           <CardContent className="p-6 text-center">
             <div className="text-3xl font-bold text-destructive mb-2">{attentionCount}</div>
-            <div className="text-sm text-muted-foreground">Precisam Atenção (&lt;7.0)</div>
+            <div className="text-sm text-muted-foreground">Precisam Atenção (≤5.0)</div>
           </CardContent>
         </Card>
       </div>
