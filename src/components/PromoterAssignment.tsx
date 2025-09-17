@@ -49,9 +49,17 @@ export const PromoterAssignment = ({ photos, promoters, onPhotosUpdate }: Promot
   };
 
   const getScoreColor = (score: number) => {
-    if (score >= 9) return 'text-success';
-    if (score >= 7) return 'text-primary';
-    return 'text-destructive';
+    if (score >= 9) return 'text-success'; // Excelente: 10-9
+    if (score >= 7) return 'text-primary'; // Bom: 8-7
+    if (score >= 6) return 'text-accent';  // Ok: 6
+    return 'text-destructive'; // Péssimo: 5-0
+  };
+
+  const getScoreLabel = (score: number) => {
+    if (score >= 9) return 'Excelente';
+    if (score >= 7) return 'Bom';
+    if (score >= 6) return 'Ok';
+    return 'Péssimo';
   };
 
   const photosWithoutPromoter = photos.filter(p => !p.promoter);
@@ -138,14 +146,14 @@ export const PromoterAssignment = ({ photos, promoters, onPhotosUpdate }: Promot
                     </div>
 
                     {/* Score badge */}
-                    <div className="absolute top-2 right-2 z-10">
-                      <Badge 
-                        variant={score >= 9 ? 'default' : score >= 7 ? 'secondary' : 'destructive'}
-                        className="text-xs font-bold"
-                      >
-                        {score.toFixed(1)}
-                      </Badge>
-                    </div>
+                     <div className="absolute top-2 right-2 z-10">
+                       <Badge 
+                         variant={score >= 9 ? 'default' : score >= 7 ? 'secondary' : score >= 6 ? 'outline' : 'destructive'}
+                         className="text-xs font-bold"
+                       >
+                         {score.toFixed(1)}
+                       </Badge>
+                     </div>
 
                     {/* Zoom button */}
                     <button
@@ -212,14 +220,14 @@ export const PromoterAssignment = ({ photos, promoters, onPhotosUpdate }: Promot
                           return (
                             <div key={photo.id} className="relative group">
                               {/* Score badge */}
-                              <div className="absolute top-2 right-2 z-10">
-                                <Badge 
-                                  variant={score >= 9 ? 'default' : score >= 7 ? 'secondary' : 'destructive'}
-                                  className="text-xs font-bold"
-                                >
-                                  {score.toFixed(1)}
-                                </Badge>
-                              </div>
+                               <div className="absolute top-2 right-2 z-10">
+                                 <Badge 
+                                   variant={score >= 9 ? 'default' : score >= 7 ? 'secondary' : score >= 6 ? 'outline' : 'destructive'}
+                                   className="text-xs font-bold"
+                                 >
+                                   {score.toFixed(1)}
+                                 </Badge>
+                               </div>
 
                               {/* Remove assignment */}
                               <button

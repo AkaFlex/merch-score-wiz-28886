@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, X, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,8 +10,33 @@ interface PromoterManagementProps {
   onPromotersChange: (promoters: string[]) => void;
 }
 
+const DEFAULT_PROMOTERS = [
+  'AGM ALEF', 'AGM ALEXSANDRA', 'AGM ANDERSON', 'AGM ARLEM', 'AGM BRUNO VIEIR',
+  'AGM CARLOS NASC', 'AGM CARLOS MOTA', 'AGM CASSIUS SP', 'AGM CLEITON UDI', 'AGM CLEYLSON',
+  'AGM CRISTIANA', 'AGM DANIEL ROCH', 'AGM DANIELLE', 'AGM EDER SE', 'AGM EDUARDO SIL',
+  'AGM FABRICIO', 'AGM FERNANDO OL', 'AGM FERNANDO UD', 'AGM KATIA', 'AGM FRANCISCO',
+  'AGM GABRIEL SP', 'AGM JAIRO MA', 'AGM JESSICA MAY', 'AGM JESSICA MA', 'AGM JOSE DAVIDS',
+  'AGM JOSENILDO', 'AGM JULIANA', 'AGM KAREN', 'AGM KELLEN', 'AGM LAZARO JORG',
+  'AGM LEANDRO MAR', 'AGM LEONARDO GO', 'AGM LINDOMAR', 'AGM LIVIA GO', 'AGM LUCAS CASTR',
+  'AGM LUCAS RJ', 'AGM LUCAS RODRI', 'AGM LUIZ HENRIQ', 'AGM MAICON', 'AGM MARCIA M',
+  'AGM MARCO TULIO', 'AGM MARIA GABRI', 'AGM MATHEUS AFO', 'AGM MATHEUS LOP', 'AGM MAYKE',
+  'AGM NHAYARA', 'AGM OTONIEL', 'AGM PEDRO CUNHA', 'AGM PHILLIP SP', 'AGM RAFAEL BH',
+  'AGM RENAN APARE', 'AGM RENAN SENA', 'AGM RICK JHONY', 'AGM RONICLEY', 'AGM SAMUEL',
+  'AGM SIMONE PINT', 'AGM SUELLEN', 'AGM SUZANA', 'AGM THAMARA', 'AGM THIAGO RJ',
+  'AGM TIAGO RP', 'AGM VICTOR EDU', 'AGM VICTOR GO', 'AGM VICTOR REGO', 'AGM VINICIO',
+  'AGM VINICIUS', 'AGM VLADEMIR', 'AGM WELLINGTON', 'AGM WESLEY', 'AGM WILLIAM BRU',
+  'AGM WILMA', 'AGM WILSON ESCO', 'AGM WILTON', 'AGM YGOR SP'
+];
+
 export const PromoterManagement = ({ promoters, onPromotersChange }: PromoterManagementProps) => {
   const [newPromoter, setNewPromoter] = useState('');
+
+  // Initialize with default promoters if empty
+  useEffect(() => {
+    if (promoters.length === 0) {
+      onPromotersChange(DEFAULT_PROMOTERS);
+    }
+  }, [promoters.length, onPromotersChange]);
 
   const addPromoter = () => {
     if (newPromoter.trim() && !promoters.includes(newPromoter.trim())) {

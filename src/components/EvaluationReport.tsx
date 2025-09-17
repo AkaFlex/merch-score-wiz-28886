@@ -296,15 +296,24 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
   };
 
   const getScoreColor = (score: number) => {
-    if (score >= 9) return 'text-success';
-    if (score >= 7) return 'text-primary';
-    return 'text-destructive';
+    if (score >= 9) return 'text-success'; // Excelente: 10-9
+    if (score >= 7) return 'text-primary'; // Bom: 8-7
+    if (score >= 6) return 'text-accent';  // Ok: 6
+    return 'text-destructive'; // Péssimo: 5-0
+  };
+
+  const getScoreLabel = (score: number) => {
+    if (score >= 9) return 'Excelente';
+    if (score >= 7) return 'Bom';
+    if (score >= 6) return 'Ok';
+    return 'Péssimo';
   };
 
   const getScoreBadge = (score: number) => {
     if (score >= 9) return { variant: 'default' as const, label: 'Excelente', color: 'bg-success' };
     if (score >= 7) return { variant: 'secondary' as const, label: 'Bom', color: 'bg-primary' };
-    return { variant: 'destructive' as const, label: 'Atenção', color: 'bg-destructive' };
+    if (score >= 6) return { variant: 'outline' as const, label: 'Ok', color: 'bg-accent' };
+    return { variant: 'destructive' as const, label: 'Péssimo', color: 'bg-destructive' };
   };
 
   return (
