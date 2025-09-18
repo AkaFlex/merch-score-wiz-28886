@@ -30,6 +30,10 @@ const Index = () => {
     setCurrentStep('evaluate');
   };
 
+  const handlePhotosUpdate = (updatedPhotos: Photo[]) => {
+    setPhotos(updatedPhotos);
+  };
+
   const handleEvaluationComplete = (evaluatedPhotos: Photo[]) => {
     setPhotos(evaluatedPhotos);
     setCurrentStep('assign');
@@ -37,6 +41,33 @@ const Index = () => {
 
   const handleAssignmentComplete = () => {
     setCurrentStep('report');
+  };
+
+  const goToStep = (step: 'upload' | 'evaluate' | 'assign' | 'report') => {
+    // Only allow navigation to steps that have been reached
+    if (step === 'upload') {
+      setCurrentStep(step);
+    } else if (step === 'evaluate' && photos.length > 0) {
+      setCurrentStep(step);
+    } else if (step === 'assign' && photos.length > 0 && photos.some(p => p.evaluation)) {
+      setCurrentStep(step);
+    } else if (step === 'report' && photos.length > 0 && photos.some(p => p.evaluation)) {
+      setCurrentStep(step);
+    }
+  };
+
+  const goBack = () => {
+    switch (currentStep) {
+      case 'evaluate':
+        setCurrentStep('upload');
+        break;
+      case 'assign':
+        setCurrentStep('evaluate');
+        break;
+      case 'report':
+        setCurrentStep('assign');
+        break;
+    }
   };
 
   const resetProcess = () => {
@@ -48,12 +79,36 @@ const Index = () => {
   const renderStep = () => {
     switch (currentStep) {
       case 'upload':
-        return <PhotoUpload onPhotosUpload={handlePhotosUpload} />;
+        return (
+          <PhotoUpload 
+            onPhotosUpload={handlePhotosUpload}
+            initialPhotos={photos}
+            onPhotosUpdate={handlePhotosUpdate}
+          />
+        );
       case 'evaluate':
-        return <PhotoEvaluation photos={photos} onComplete={handleEvaluationComplete} />;
+        return (
+          <div className="space-y-6">
+            <div className="flex justify-start">
+              <Button variant="outline" onClick={goBack}>
+                ← Voltar para Upload
+              </Button>
+            </div>
+            <PhotoEvaluation 
+              photos={photos} 
+              onComplete={handleEvaluationComplete}
+              onPhotosUpdate={handlePhotosUpdate}
+            />
+          </div>
+        );
       case 'assign':
         return (
           <div className="max-w-7xl mx-auto space-y-6">
+            <div className="flex justify-start">
+              <Button variant="outline" onClick={goBack}>
+                ← Voltar para Avaliação
+              </Button>
+            </div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <PromoterManagement
                 promoters={promoters}
@@ -80,7 +135,16 @@ const Index = () => {
           </div>
         );
       case 'report':
-        return <EvaluationReport photos={photos} onReset={resetProcess} />;
+        return (
+          <div className="space-y-6">
+            <div className="flex justify-start">
+              <Button variant="outline" onClick={goBack}>
+                ← Voltar para Atribuição
+              </Button>
+            </div>
+            <EvaluationReport photos={photos} onReset={resetProcess} />
+          </div>
+        );
       default:
         return null;
     }
@@ -103,36 +167,54 @@ const Index = () => {
             
             {/* Progress Steps */}
             <div className="flex items-center space-x-4">
-              <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-                currentStep === 'upload' ? 'bg-primary text-primary-foreground' : 
-                photos.length > 0 ? 'bg-success text-success-foreground' : 'bg-muted text-muted-foreground'
-              }`}>
+              <button
+                onClick={() => goToStep('upload')}
+                className={`flex items-center space-x-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all cursor-pointer hover:scale-105 ${
+                  currentStep === 'upload' ? 'bg-primary text-primary-foreground' : 
+                  photos.length > 0 ? 'bg-success text-success-foreground hover:bg-success/80' : 'bg-muted text-muted-foreground'
+                }`}
+              >
                 <Upload className="w-4 h-4" />
                 <span>Upload</span>
-              </div>
+              </button>
               
-              <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-                currentStep === 'evaluate' ? 'bg-primary text-primary-foreground' : 
-                ['assign', 'report'].includes(currentStep) ? 'bg-success text-success-foreground' : 'bg-muted text-muted-foreground'
-              }`}>
+              <button
+                onClick={() => goToStep('evaluate')}
+                disabled={photos.length === 0}
+                className={`flex items-center space-x-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+                  photos.length === 0 ? 'bg-muted text-muted-foreground cursor-not-allowed' :
+                  currentStep === 'evaluate' ? 'bg-primary text-primary-foreground' : 
+                  ['assign', 'report'].includes(currentStep) ? 'bg-success text-success-foreground hover:bg-success/80 cursor-pointer hover:scale-105' : 'bg-muted text-muted-foreground cursor-pointer hover:bg-muted/80 hover:scale-105'
+                }`}
+              >
                 <BarChart3 className="w-4 h-4" />
                 <span>Avaliar</span>
-              </div>
+              </button>
 
-              <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-                currentStep === 'assign' ? 'bg-primary text-primary-foreground' : 
-                currentStep === 'report' ? 'bg-success text-success-foreground' : 'bg-muted text-muted-foreground'
-              }`}>
+              <button
+                onClick={() => goToStep('assign')}
+                disabled={!photos.some(p => p.evaluation)}
+                className={`flex items-center space-x-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+                  !photos.some(p => p.evaluation) ? 'bg-muted text-muted-foreground cursor-not-allowed' :
+                  currentStep === 'assign' ? 'bg-primary text-primary-foreground' : 
+                  currentStep === 'report' ? 'bg-success text-success-foreground hover:bg-success/80 cursor-pointer hover:scale-105' : 'bg-muted text-muted-foreground cursor-pointer hover:bg-muted/80 hover:scale-105'
+                }`}
+              >
                 <Users className="w-4 h-4" />
                 <span>Atribuir</span>
-              </div>
+              </button>
               
-              <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-                currentStep === 'report' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
-              }`}>
+              <button
+                onClick={() => goToStep('report')}
+                disabled={!photos.some(p => p.evaluation)}
+                className={`flex items-center space-x-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+                  !photos.some(p => p.evaluation) ? 'bg-muted text-muted-foreground cursor-not-allowed' :
+                  currentStep === 'report' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground cursor-pointer hover:bg-muted/80 hover:scale-105'
+                }`}
+              >
                 <Download className="w-4 h-4" />
                 <span>Relatório</span>
-              </div>
+              </button>
             </div>
           </div>
         </div>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronLeft, ChevronRight, Check, RotateCcw, Eye } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, RotateCcw, Eye, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -10,6 +10,7 @@ import type { Photo } from '@/pages/Index';
 interface PhotoEvaluationProps {
   photos: Photo[];
   onComplete: (evaluatedPhotos: Photo[]) => void;
+  onPhotosUpdate: (photos: Photo[]) => void;
 }
 
 const CRITERIA = [
@@ -27,7 +28,7 @@ const CRITERIA = [
   { name: 'Fora de Layout', penalty: 3 },
 ];
 
-export const PhotoEvaluation = ({ photos, onComplete }: PhotoEvaluationProps) => {
+export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEvaluationProps) => {
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [evaluations, setEvaluations] = useState<Record<string, string[]>>({});
 
@@ -66,6 +67,28 @@ export const PhotoEvaluation = ({ photos, onComplete }: PhotoEvaluationProps) =>
       delete newEvaluations[currentPhoto.id];
       return newEvaluations;
     });
+  };
+
+  const removeCurrentPhoto = () => {
+    const updatedPhotos = photos.filter(photo => photo.id !== currentPhoto.id);
+    
+    // Remove evaluation for this photo
+    setEvaluations(prev => {
+      const newEvaluations = { ...prev };
+      delete newEvaluations[currentPhoto.id];
+      return newEvaluations;
+    });
+
+    // Adjust current photo index if necessary
+    if (currentPhotoIndex >= updatedPhotos.length && updatedPhotos.length > 0) {
+      setCurrentPhotoIndex(updatedPhotos.length - 1);
+    } else if (updatedPhotos.length === 0) {
+      // No photos left, go back to upload
+      onPhotosUpdate(updatedPhotos);
+      return;
+    }
+
+    onPhotosUpdate(updatedPhotos);
   };
 
   const completeEvaluation = () => {
@@ -136,6 +159,14 @@ export const PhotoEvaluation = ({ photos, onComplete }: PhotoEvaluationProps) =>
                   disabled={currentPhotoIndex === photos.length - 1}
                 >
                   <ChevronRight className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={removeCurrentPhoto}
+                  title="Excluir foto"
+                >
+                  <Trash2 className="w-4 h-4" />
                 </Button>
               </div>
             </div>

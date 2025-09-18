@@ -8,10 +8,13 @@ import type { Photo } from '@/pages/Index';
 
 interface PhotoUploadProps {
   onPhotosUpload: (photos: Photo[]) => void;
+  initialPhotos?: Photo[];
+  onPhotosUpdate?: (photos: Photo[]) => void;
 }
 
-export const PhotoUpload = ({ onPhotosUpload }: PhotoUploadProps) => {
+export const PhotoUpload = ({ onPhotosUpload, initialPhotos = [], onPhotosUpdate }: PhotoUploadProps) => {
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
+  const [uploadedPhotos, setUploadedPhotos] = useState<Photo[]>(initialPhotos);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -31,16 +34,22 @@ export const PhotoUpload = ({ onPhotosUpload }: PhotoUploadProps) => {
     setUploadedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
+  const removePhoto = (photoId: string) => {
+    const updatedPhotos = uploadedPhotos.filter(photo => photo.id !== photoId);
+    setUploadedPhotos(updatedPhotos);
+    onPhotosUpdate?.(updatedPhotos);
+  };
+
   const processFiles = async () => {
     setIsProcessing(true);
     
-    const photos: Photo[] = await Promise.all(
+    const newPhotos: Photo[] = await Promise.all(
       uploadedFiles.map(async (file, index) => {
         return new Promise<Photo>((resolve) => {
           const reader = new FileReader();
           reader.onload = (e) => {
             resolve({
-              id: `photo-${index}`,
+              id: `photo-${Date.now()}-${index}`,
               name: file.name,
               url: e.target?.result as string,
             });
@@ -50,8 +59,11 @@ export const PhotoUpload = ({ onPhotosUpload }: PhotoUploadProps) => {
       })
     );
     
+    const allPhotos = [...uploadedPhotos, ...newPhotos];
+    setUploadedPhotos(allPhotos);
+    setUploadedFiles([]);
     setIsProcessing(false);
-    onPhotosUpload(photos);
+    onPhotosUpload(allPhotos);
   };
 
   return (
@@ -98,18 +110,24 @@ export const PhotoUpload = ({ onPhotosUpload }: PhotoUploadProps) => {
         </CardContent>
       </Card>
 
-      {uploadedFiles.length > 0 && (
+      {(uploadedFiles.length > 0 || uploadedPhotos.length > 0) && (
         <Card className="shadow-card border-0 bg-card/50 backdrop-blur-sm">
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
-              <span>Fotos Carregadas ({uploadedFiles.length})</span>
-              <Button 
-                onClick={processFiles} 
-                disabled={isProcessing}
-                className="bg-gradient-to-r from-primary to-primary-glow hover:from-primary/90 hover:to-primary-glow/90"
-              >
-                {isProcessing ? 'Processando...' : 'Iniciar Avaliação'}
-              </Button>
+              <span>
+                Fotos {uploadedPhotos.length > 0 && 'Processadas'} 
+                ({uploadedPhotos.length + uploadedFiles.length})
+                {uploadedFiles.length > 0 && ` • ${uploadedFiles.length} novas`}
+              </span>
+              {uploadedFiles.length > 0 && (
+                <Button 
+                  onClick={processFiles} 
+                  disabled={isProcessing}
+                  className="bg-gradient-to-r from-primary to-primary-glow hover:from-primary/90 hover:to-primary-glow/90"
+                >
+                  {isProcessing ? 'Processando...' : uploadedPhotos.length > 0 ? 'Adicionar Fotos' : 'Iniciar Avaliação'}
+                </Button>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -123,8 +141,35 @@ export const PhotoUpload = ({ onPhotosUpload }: PhotoUploadProps) => {
             )}
             
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              {/* Fotos já processadas */}
+              {uploadedPhotos.map((photo) => (
+                <div key={photo.id} className="relative group">
+                  <div className="aspect-square bg-muted rounded-lg overflow-hidden border-2 border-success group-hover:border-primary/50 transition-all">
+                    <img
+                      src={photo.url}
+                      alt={photo.name}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all" />
+                    <div className="absolute top-2 left-2 p-1 bg-success text-success-foreground rounded-full">
+                      <CheckCircle className="w-3 h-3" />
+                    </div>
+                    <button
+                      onClick={() => removePhoto(photo.id)}
+                      className="absolute top-2 right-2 p-1 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-all hover:scale-110"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <p className="text-xs text-center mt-2 truncate" title={photo.name}>
+                    {photo.name}
+                  </p>
+                </div>
+              ))}
+              
+              {/* Novos arquivos para processar */}
               {uploadedFiles.map((file, index) => (
-                <div key={index} className="relative group">
+                <div key={`new-${index}`} className="relative group">
                   <div className="aspect-square bg-muted rounded-lg overflow-hidden border-2 border-border group-hover:border-primary/50 transition-all">
                     <img
                       src={URL.createObjectURL(file)}
