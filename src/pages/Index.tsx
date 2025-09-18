@@ -44,16 +44,8 @@ const Index = () => {
   };
 
   const goToStep = (step: 'upload' | 'evaluate' | 'assign' | 'report') => {
-    // Only allow navigation to steps that have been reached
-    if (step === 'upload') {
-      setCurrentStep(step);
-    } else if (step === 'evaluate' && photos.length > 0) {
-      setCurrentStep(step);
-    } else if (step === 'assign' && photos.length > 0 && photos.some(p => p.evaluation)) {
-      setCurrentStep(step);
-    } else if (step === 'report' && photos.length > 0 && photos.some(p => p.evaluation)) {
-      setCurrentStep(step);
-    }
+    // Allow free navigation between all steps
+    setCurrentStep(step);
   };
 
   const goBack = () => {
@@ -166,12 +158,13 @@ const Index = () => {
             </div>
             
             {/* Progress Steps */}
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
               <button
                 onClick={() => goToStep('upload')}
-                className={`flex items-center space-x-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all cursor-pointer hover:scale-105 ${
-                  currentStep === 'upload' ? 'bg-primary text-primary-foreground' : 
-                  photos.length > 0 ? 'bg-success text-success-foreground hover:bg-success/80' : 'bg-muted text-muted-foreground'
+                className={`flex items-center space-x-2 px-4 py-2 rounded-full font-medium transition-all hover:scale-105 shadow-md ${
+                  currentStep === 'upload' 
+                    ? 'bg-green-600 text-white shadow-lg scale-105' 
+                    : 'bg-green-500 text-white hover:bg-green-600'
                 }`}
               >
                 <Upload className="w-4 h-4" />
@@ -180,11 +173,10 @@ const Index = () => {
               
               <button
                 onClick={() => goToStep('evaluate')}
-                disabled={photos.length === 0}
-                className={`flex items-center space-x-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-                  photos.length === 0 ? 'bg-muted text-muted-foreground cursor-not-allowed' :
-                  currentStep === 'evaluate' ? 'bg-primary text-primary-foreground' : 
-                  ['assign', 'report'].includes(currentStep) ? 'bg-success text-success-foreground hover:bg-success/80 cursor-pointer hover:scale-105' : 'bg-muted text-muted-foreground cursor-pointer hover:bg-muted/80 hover:scale-105'
+                className={`flex items-center space-x-2 px-4 py-2 rounded-full font-medium transition-all hover:scale-105 shadow-md ${
+                  currentStep === 'evaluate' 
+                    ? 'bg-green-600 text-white shadow-lg scale-105' 
+                    : 'bg-green-500 text-white hover:bg-green-600'
                 }`}
               >
                 <BarChart3 className="w-4 h-4" />
@@ -193,11 +185,10 @@ const Index = () => {
 
               <button
                 onClick={() => goToStep('assign')}
-                disabled={!photos.some(p => p.evaluation)}
-                className={`flex items-center space-x-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-                  !photos.some(p => p.evaluation) ? 'bg-muted text-muted-foreground cursor-not-allowed' :
-                  currentStep === 'assign' ? 'bg-primary text-primary-foreground' : 
-                  currentStep === 'report' ? 'bg-success text-success-foreground hover:bg-success/80 cursor-pointer hover:scale-105' : 'bg-muted text-muted-foreground cursor-pointer hover:bg-muted/80 hover:scale-105'
+                className={`flex items-center space-x-2 px-4 py-2 rounded-full font-medium transition-all hover:scale-105 shadow-md ${
+                  currentStep === 'assign' 
+                    ? 'bg-green-600 text-white shadow-lg scale-105' 
+                    : 'bg-green-500 text-white hover:bg-green-600'
                 }`}
               >
                 <Users className="w-4 h-4" />
@@ -206,10 +197,10 @@ const Index = () => {
               
               <button
                 onClick={() => goToStep('report')}
-                disabled={!photos.some(p => p.evaluation)}
-                className={`flex items-center space-x-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-                  !photos.some(p => p.evaluation) ? 'bg-muted text-muted-foreground cursor-not-allowed' :
-                  currentStep === 'report' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground cursor-pointer hover:bg-muted/80 hover:scale-105'
+                className={`flex items-center space-x-2 px-4 py-2 rounded-full font-medium transition-all hover:scale-105 shadow-md ${
+                  currentStep === 'report' 
+                    ? 'bg-blue-600 text-white shadow-lg scale-105' 
+                    : 'bg-blue-500 text-white hover:bg-blue-600'
                 }`}
               >
                 <Download className="w-4 h-4" />
