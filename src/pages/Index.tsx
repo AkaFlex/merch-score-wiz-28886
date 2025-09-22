@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Upload, FileImage, BarChart3, Download, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,6 +8,10 @@ import { EvaluationReport } from '@/components/EvaluationReport';
 import { PromoterManagement } from '@/components/PromoterManagement';
 import { PromoterAssignment } from '@/components/PromoterAssignment';
 import { ReportSummary } from '@/components/ReportSummary';
+import { OfflineIndicator } from '@/components/OfflineIndicator';
+import { DataBackup } from '@/components/DataBackup';
+import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { toast } from 'sonner';
 
 export interface Photo {
   id: string;
@@ -21,9 +25,22 @@ export interface Photo {
 }
 
 const Index = () => {
-  const [photos, setPhotos] = useState<Photo[]>([]);
-  const [promoters, setPromoters] = useState<string[]>([]);
-  const [currentStep, setCurrentStep] = useState<'upload' | 'evaluate' | 'assign' | 'report'>('upload');
+  // Persistent state using localStorage
+  const [photos, setPhotos, clearPhotos] = useLocalStorage<Photo[]>('merchandising-photos', []);
+  const [promoters, setPromoters, clearPromoters] = useLocalStorage<string[]>('merchandising-promoters', []);
+  const [currentStep, setCurrentStep, clearStep] = useLocalStorage<'upload' | 'evaluate' | 'assign' | 'report'>('merchandising-step', 'upload');
+  
+  // Auto-save notification
+  useEffect(() => {
+    const hasData = photos.length > 0 || promoters.length > 0;
+    if (hasData) {
+      const savedMessage = 'Dados salvos automaticamente';
+      const timeoutId = setTimeout(() => {
+        // Silent save - only show toast on significant changes
+      }, 1000);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [photos, promoters]);
 
   const handlePhotosUpload = (uploadedPhotos: Photo[]) => {
     setPhotos(uploadedPhotos);
@@ -63,9 +80,10 @@ const Index = () => {
   };
 
   const resetProcess = () => {
-    setPhotos([]);
-    setPromoters([]);
-    setCurrentStep('upload');
+    clearPhotos();
+    clearPromoters();
+    clearStep();
+    toast.success('Dados limpos com sucesso');
   };
 
   const renderStep = () => {
@@ -102,10 +120,20 @@ const Index = () => {
               </Button>
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <PromoterManagement
-                promoters={promoters}
-                onPromotersChange={setPromoters}
-              />
+              <div className="space-y-6">
+                <PromoterManagement
+                  promoters={promoters}
+                  onPromotersChange={setPromoters}
+                />
+                <DataBackup 
+                  photos={photos}
+                  promoters={promoters}
+                  onDataImport={({ photos: importedPhotos, promoters: importedPromoters }) => {
+                    setPhotos(importedPhotos);
+                    setPromoters(importedPromoters);
+                  }}
+                />
+              </div>
               <div className="lg:col-span-2">
                 <ReportSummary photos={photos} />
               </div>
@@ -144,6 +172,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-secondary/30 to-background">
+      <OfflineIndicator />
       <header className="border-b bg-card/80 backdrop-blur-sm sticky top-0 z-50">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">

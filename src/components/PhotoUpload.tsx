@@ -1,9 +1,12 @@
 import { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { Upload, FileImage, X, CheckCircle } from 'lucide-react';
+import { Upload, FileImage, X, CheckCircle, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useFileValidation } from '@/hooks/useFileValidation';
+import { toast } from 'sonner';
 import type { Photo } from '@/pages/Index';
 
 interface PhotoUploadProps {
@@ -16,11 +19,27 @@ export const PhotoUpload = ({ onPhotosUpload, initialPhotos = [], onPhotosUpdate
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
   const [uploadedPhotos, setUploadedPhotos] = useState<Photo[]>(initialPhotos);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  
+  const { validateFiles, isValidating } = useFileValidation({
+    maxSize: 10 * 1024 * 1024, // 10MB
+    allowedTypes: ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'],
+    maxFiles: 20
+  });
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    const imageFiles = acceptedFiles.filter(file => file.type.startsWith('image/'));
-    setUploadedFiles(prev => [...prev, ...imageFiles]);
-  }, []);
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    setError(null);
+    try {
+      const { validFiles, errors } = await validateFiles(acceptedFiles);
+      if (validFiles.length > 0) {
+        setUploadedFiles(prev => [...prev, ...validFiles]);
+      }
+    } catch (error) {
+      setError('Erro ao validar arquivos. Tente novamente.');
+      console.error('File validation error:', error);
+    }
+  }, [validateFiles]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -42,28 +61,51 @@ export const PhotoUpload = ({ onPhotosUpload, initialPhotos = [], onPhotosUpdate
 
   const processFiles = async () => {
     setIsProcessing(true);
+    setProcessingProgress(0);
+    setError(null);
     
-    const newPhotos: Photo[] = await Promise.all(
-      uploadedFiles.map(async (file, index) => {
-        return new Promise<Photo>((resolve) => {
+    try {
+      const newPhotos: Photo[] = [];
+      
+      for (let i = 0; i < uploadedFiles.length; i++) {
+        const file = uploadedFiles[i];
+        const progress = ((i + 1) / uploadedFiles.length) * 100;
+        setProcessingProgress(progress);
+        
+        const photo = await new Promise<Photo>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = (e) => {
-            resolve({
-              id: `photo-${Date.now()}-${index}`,
-              name: file.name,
-              url: e.target?.result as string,
-            });
+            if (e.target?.result) {
+              resolve({
+                id: `photo-${Date.now()}-${i}`,
+                name: file.name,
+                url: e.target.result as string,
+              });
+            } else {
+              reject(new Error('Failed to read file'));
+            }
           };
+          reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
           reader.readAsDataURL(file);
         });
-      })
-    );
-    
-    const allPhotos = [...uploadedPhotos, ...newPhotos];
-    setUploadedPhotos(allPhotos);
-    setUploadedFiles([]);
-    setIsProcessing(false);
-    onPhotosUpload(allPhotos);
+        
+        newPhotos.push(photo);
+      }
+      
+      const allPhotos = [...uploadedPhotos, ...newPhotos];
+      setUploadedPhotos(allPhotos);
+      setUploadedFiles([]);
+      onPhotosUpload(allPhotos);
+      toast.success(`${newPhotos.length} foto(s) processada(s) com sucesso`);
+      
+    } catch (error) {
+      setError('Erro ao processar arquivos. Tente novamente.');
+      console.error('File processing error:', error);
+      toast.error('Erro ao processar arquivos');
+    } finally {
+      setIsProcessing(false);
+      setProcessingProgress(0);
+    }
   };
 
   return (
@@ -88,22 +130,34 @@ export const PhotoUpload = ({ onPhotosUpload, initialPhotos = [], onPhotosUpdate
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {error && (
+            <Alert className="mb-4" variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          
           <div
             {...getRootProps()}
             className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-300 ${
               isDragActive 
                 ? 'border-primary bg-primary/5 scale-105' 
                 : 'border-border hover:border-primary/50 hover:bg-primary/2'
-            }`}
+            } ${isValidating ? 'pointer-events-none opacity-50' : ''}`}
           >
             <input {...getInputProps()} />
             <Upload className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            {isDragActive ? (
+            {isValidating ? (
+              <p className="text-lg font-medium text-primary">Validando arquivos...</p>
+            ) : isDragActive ? (
               <p className="text-lg font-medium text-primary">Solte as fotos aqui...</p>
             ) : (
               <>
                 <p className="text-lg font-medium mb-2">Arraste e solte suas fotos aqui</p>
                 <p className="text-muted-foreground">ou clique para selecionar arquivos</p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Máx. 20 fotos, 10MB cada • JPG, PNG, WEBP
+                </p>
               </>
             )}
           </div>
@@ -122,10 +176,12 @@ export const PhotoUpload = ({ onPhotosUpload, initialPhotos = [], onPhotosUpdate
               {uploadedFiles.length > 0 && (
                 <Button 
                   onClick={processFiles} 
-                  disabled={isProcessing}
+                  disabled={isProcessing || isValidating}
                   className="bg-gradient-to-r from-primary to-primary-glow hover:from-primary/90 hover:to-primary-glow/90"
                 >
-                  {isProcessing ? 'Processando...' : uploadedPhotos.length > 0 ? 'Adicionar Fotos' : 'Iniciar Avaliação'}
+                  {isProcessing ? `Processando... ${Math.round(processingProgress)}%` : 
+                   isValidating ? 'Validando...' :
+                   uploadedPhotos.length > 0 ? 'Adicionar Fotos' : 'Iniciar Avaliação'}
                 </Button>
               )}
             </CardTitle>
@@ -133,9 +189,9 @@ export const PhotoUpload = ({ onPhotosUpload, initialPhotos = [], onPhotosUpdate
           <CardContent>
             {isProcessing && (
               <div className="mb-4">
-                <Progress value={100} className="w-full" />
+                <Progress value={processingProgress} className="w-full" />
                 <p className="text-sm text-muted-foreground mt-2 text-center">
-                  Preparando fotos para avaliação...
+                  Processando fotos... {Math.round(processingProgress)}%
                 </p>
               </div>
             )}

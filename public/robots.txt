@@ -12,3 +12,9 @@ Allow: /
 
 User-agent: *
 Allow: /
+
+# SEO optimization
+Sitemap: https://ba24c7fd-b85f-4d6a-9d3d-d56d53c49e69.lovableproject.com/sitemap.xml
+
+# Performance optimization
+Crawl-delay: 1
