@@ -32,7 +32,22 @@ export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEva
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [evaluations, setEvaluations] = useState<Record<string, string[]>>({});
 
+  // Safety check for empty photos or invalid index
+  if (!photos || photos.length === 0) {
+    return (
+      <div className="max-w-7xl mx-auto space-y-6 text-center py-12">
+        <h2 className="text-2xl font-bold text-muted-foreground">Nenhuma foto para avaliar</h2>
+        <p className="text-muted-foreground">Faça o upload de fotos primeiro.</p>
+      </div>
+    );
+  }
+
   const currentPhoto = photos[currentPhotoIndex];
+  if (!currentPhoto) {
+    setCurrentPhotoIndex(0);
+    return null;
+  }
+  
   const currentCriteria = evaluations[currentPhoto.id] || [];
   const currentScore = 10 - CRITERIA.reduce((total, criterion) => {
     return currentCriteria.includes(criterion.name) ? total + criterion.penalty : total;
