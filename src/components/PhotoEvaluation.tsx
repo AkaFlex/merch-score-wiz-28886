@@ -31,6 +31,14 @@ const CRITERIA = [
 export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEvaluationProps) => {
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [evaluations, setEvaluations] = useState<Record<string, string[]>>({});
+  const [currentPage, setCurrentPage] = useState(0);
+  
+  const PHOTOS_PER_PAGE = 50; // Show 50 photos per page for large batches
+  const totalPages = Math.ceil(photos.length / PHOTOS_PER_PAGE);
+  const startIndex = currentPage * PHOTOS_PER_PAGE;
+  const endIndex = Math.min(startIndex + PHOTOS_PER_PAGE, photos.length);
+  const currentPagePhotos = photos.slice(startIndex, endIndex);
+  const relativePhotoIndex = currentPhotoIndex - startIndex;
 
   // Safety check for empty photos or invalid index
   if (!photos || photos.length === 0) {
@@ -70,10 +78,27 @@ export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEva
 
   const navigatePhoto = (direction: 'prev' | 'next') => {
     if (direction === 'prev' && currentPhotoIndex > 0) {
-      setCurrentPhotoIndex(currentPhotoIndex - 1);
+      const newIndex = currentPhotoIndex - 1;
+      setCurrentPhotoIndex(newIndex);
+      
+      // Check if we need to go to previous page
+      if (newIndex < startIndex && currentPage > 0) {
+        setCurrentPage(currentPage - 1);
+      }
     } else if (direction === 'next' && currentPhotoIndex < photos.length - 1) {
-      setCurrentPhotoIndex(currentPhotoIndex + 1);
+      const newIndex = currentPhotoIndex + 1;
+      setCurrentPhotoIndex(newIndex);
+      
+      // Check if we need to go to next page
+      if (newIndex >= endIndex && currentPage < totalPages - 1) {
+        setCurrentPage(currentPage + 1);
+      }
     }
+  };
+
+  const goToPage = (page: number) => {
+    setCurrentPage(page);
+    setCurrentPhotoIndex(page * PHOTOS_PER_PAGE);
   };
 
   const resetCurrentEvaluation = () => {
@@ -126,22 +151,52 @@ export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEva
       {/* Header with Progress */}
       <Card className="shadow-card border-0 bg-card/50 backdrop-blur-sm">
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-2xl">Avaliação de Fotos</CardTitle>
-              <CardDescription>
-                Foto {currentPhotoIndex + 1} de {photos.length} • {evaluatedCount} avaliadas
-              </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-2xl">Avaliação de Fotos</CardTitle>
+                <CardDescription>
+                  Foto {currentPhotoIndex + 1} de {photos.length} • {evaluatedCount} avaliadas
+                  {totalPages > 1 && (
+                    <span className="block text-xs mt-1">
+                      Página {currentPage + 1} de {totalPages} ({startIndex + 1}-{endIndex} de {photos.length})
+                    </span>
+                  )}
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-1 mr-4">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => goToPage(Math.max(0, currentPage - 1))}
+                      disabled={currentPage === 0}
+                    >
+                      Página Anterior
+                    </Button>
+                    <span className="text-sm text-muted-foreground px-2">
+                      {currentPage + 1}/{totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => goToPage(Math.min(totalPages - 1, currentPage + 1))}
+                      disabled={currentPage === totalPages - 1}
+                    >
+                      Próxima Página
+                    </Button>
+                  </div>
+                )}
+                <Button 
+                  onClick={completeEvaluation}
+                  disabled={evaluatedCount === 0}
+                  className="bg-gradient-to-r from-success to-success/90 hover:from-success/90 hover:to-success/80"
+                >
+                  <Check className="w-4 h-4 mr-2" />
+                  Finalizar Avaliação
+                </Button>
+              </div>
             </div>
-            <Button 
-              onClick={completeEvaluation}
-              disabled={evaluatedCount === 0}
-              className="bg-gradient-to-r from-success to-success/90 hover:from-success/90 hover:to-success/80"
-            >
-              <Check className="w-4 h-4 mr-2" />
-              Finalizar Avaliação
-            </Button>
-          </div>
           <Progress value={progress} className="mt-4" />
         </CardHeader>
       </Card>

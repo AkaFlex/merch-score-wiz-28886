@@ -18,7 +18,7 @@ export const useFileValidation = (options: FileValidationOptions = {}) => {
   const {
     maxSize = 10 * 1024 * 1024, // 10MB default
     allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'],
-    maxFiles = 50
+    maxFiles = 1000 // Increased for large batches
   } = options;
 
   const validateFiles = async (files: File[]): Promise<ValidationResult> => {

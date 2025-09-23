@@ -25,7 +25,7 @@ export const PhotoUpload = ({ onPhotosUpload, initialPhotos = [], onPhotosUpdate
   const { validateFiles, isValidating } = useFileValidation({
     maxSize: 10 * 1024 * 1024, // 10MB
     allowedTypes: ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'],
-    maxFiles: 20
+    maxFiles: 1000 // Increased for large batches
   });
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
@@ -156,7 +156,7 @@ export const PhotoUpload = ({ onPhotosUpload, initialPhotos = [], onPhotosUpdate
                 <p className="text-lg font-medium mb-2">Arraste e solte suas fotos aqui</p>
                 <p className="text-muted-foreground">ou clique para selecionar arquivos</p>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Máx. 20 fotos, 10MB cada • JPG, PNG, WEBP
+                  Máx. 1000 fotos, 10MB cada • JPG, PNG, WEBP
                 </p>
               </>
             )}
