@@ -205,12 +205,14 @@ export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEva
         {/* Photo Display */}
         <Card className="lg:col-span-2 shadow-card border-0 bg-card/50 backdrop-blur-sm">
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <Eye className="w-5 h-5 text-primary" />
-                {currentPhoto.name}
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <CardTitle className="flex items-center gap-2 min-w-0">
+                <Eye className="w-5 h-5 text-primary flex-shrink-0" />
+                <span className="truncate" title={currentPhoto.name}>
+                  {currentPhoto.name}
+                </span>
               </CardTitle>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-shrink-0">
                 <Button
                   variant="outline"
                   size="sm"
@@ -219,7 +221,7 @@ export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEva
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </Button>
-                <Badge variant="secondary" className="px-3 py-1">
+                <Badge variant="secondary" className="px-2 py-1 text-xs whitespace-nowrap">
                   {currentPhotoIndex + 1}/{photos.length}
                 </Badge>
                 <Button
@@ -267,8 +269,11 @@ export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEva
               </Button>
             </div>
             <div className="text-center py-4 bg-gradient-to-r from-primary/10 to-primary-glow/10 rounded-lg border border-primary/20">
-              <div className="text-3xl font-bold text-primary">{currentScore.toFixed(1)}</div>
+              <div className="text-3xl font-bold text-primary">{Math.max(0, currentScore).toFixed(1)}</div>
               <div className="text-sm text-muted-foreground">Pontuação Atual</div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {currentCriteria.length === 0 ? 'Nota máxima (10.0)' : `${currentCriteria.length} critério(s) aplicado(s)`}
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">

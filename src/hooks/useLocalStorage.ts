@@ -15,9 +15,21 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
     try {
       const valueToStore = value instanceof Function ? value(storedValue) : value;
       setStoredValue(valueToStore);
-      window.localStorage.setItem(key, JSON.stringify(valueToStore));
+      
+      // Try localStorage first, fallback to sessionStorage if quota exceeded
+      try {
+        window.localStorage.setItem(key, JSON.stringify(valueToStore));
+      } catch (localStorageError) {
+        console.warn(`localStorage quota exceeded for key "${key}", using sessionStorage:`, localStorageError);
+        try {
+          window.sessionStorage.setItem(key, JSON.stringify(valueToStore));
+        } catch (sessionStorageError) {
+          console.warn(`sessionStorage also failed for key "${key}":`, sessionStorageError);
+          // Continue with in-memory storage only
+        }
+      }
     } catch (error) {
-      console.error(`Error setting localStorage key "${key}":`, error);
+      console.error(`Error setting storage for key "${key}":`, error);
     }
   };
 
