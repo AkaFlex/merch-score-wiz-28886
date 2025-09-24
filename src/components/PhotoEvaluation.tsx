@@ -1,10 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Check, RotateCcw, Eye, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { KeyboardShortcuts, type ShortcutConfig } from '@/components/KeyboardShortcuts';
+import { WatermarkRemover } from '@/components/WatermarkRemover';
+import { useLocalStorage } from '@/hooks/useLocalStorage';
 import type { Photo } from '@/pages/Index';
 
 interface PhotoEvaluationProps {
@@ -32,6 +35,18 @@ export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEva
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const [evaluations, setEvaluations] = useState<Record<string, string[]>>({});
   const [currentPage, setCurrentPage] = useState(0);
+  const [shortcuts, setShortcuts] = useLocalStorage<ShortcutConfig>('photo-evaluation-shortcuts', {
+    nextPhoto: 'ArrowRight',
+    prevPhoto: 'ArrowLeft', 
+    score10: 'Digit0',
+    score9: 'Digit9',
+    score8: 'Digit8',
+    score7: 'Digit7',
+    score6: 'Digit6',
+    score5: 'Digit5',
+    resetScore: 'KeyR',
+    removePhoto: 'Delete'
+  });
   
   const PHOTOS_PER_PAGE = 50; // Show 50 photos per page for large batches
   const totalPages = Math.ceil(photos.length / PHOTOS_PER_PAGE);
@@ -75,6 +90,31 @@ export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEva
       return { ...prev, [photoId]: newList };
     });
   };
+
+  const setDirectScore = useCallback((targetScore: number) => {
+    const photoId = currentPhoto.id;
+    
+    // Calculate which criteria to apply to reach the target score
+    let remainingPenalty = 10 - targetScore;
+    const criteriaToApply: string[] = [];
+    
+    // Sort criteria by penalty (descending) for optimal combination
+    const sortedCriteria = [...CRITERIA].sort((a, b) => b.penalty - a.penalty);
+    
+    for (const criterion of sortedCriteria) {
+      if (remainingPenalty >= criterion.penalty) {
+        criteriaToApply.push(criterion.name);
+        remainingPenalty -= criterion.penalty;
+        
+        if (remainingPenalty <= 0) break;
+      }
+    }
+    
+    setEvaluations(prev => ({
+      ...prev,
+      [photoId]: criteriaToApply
+    }));
+  }, [currentPhoto.id]);
 
   const navigatePhoto = (direction: 'prev' | 'next') => {
     if (direction === 'prev' && currentPhotoIndex > 0) {
@@ -146,6 +186,63 @@ export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEva
     onComplete(evaluatedPhotos);
   };
 
+  const handleImageUpdate = (newUrl: string) => {
+    const updatedPhotos = photos.map(photo => 
+      photo.id === currentPhoto.id 
+        ? { ...photo, url: newUrl }
+        : photo
+    );
+    onPhotosUpdate(updatedPhotos);
+  };
+
+  const handleKeyPress = useCallback((event: KeyboardEvent) => {
+    // Prevent keyboard shortcuts when typing in inputs
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+      return;
+    }
+
+    const key = event.code;
+    
+    if (key === shortcuts.nextPhoto) {
+      event.preventDefault();
+      navigatePhoto('next');
+    } else if (key === shortcuts.prevPhoto) {
+      event.preventDefault();
+      navigatePhoto('prev');
+    } else if (key === shortcuts.resetScore) {
+      event.preventDefault();
+      resetCurrentEvaluation();
+    } else if (key === shortcuts.removePhoto) {
+      event.preventDefault();
+      removeCurrentPhoto();
+    } else if (key === shortcuts.score10) {
+      event.preventDefault();
+      setDirectScore(10);
+    } else if (key === shortcuts.score9) {
+      event.preventDefault();
+      setDirectScore(9);
+    } else if (key === shortcuts.score8) {
+      event.preventDefault();
+      setDirectScore(8);
+    } else if (key === shortcuts.score7) {
+      event.preventDefault();
+      setDirectScore(7);
+    } else if (key === shortcuts.score6) {
+      event.preventDefault();
+      setDirectScore(6);
+    } else if (key === shortcuts.score5) {
+      event.preventDefault();
+      setDirectScore(5);
+    }
+  }, [shortcuts, setDirectScore]);
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyPress);
+    return () => {
+      document.removeEventListener('keydown', handleKeyPress);
+    };
+  }, [handleKeyPress]);
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Header with Progress */}
@@ -164,6 +261,10 @@ export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEva
                 </CardDescription>
               </div>
               <div className="flex items-center gap-2">
+                <KeyboardShortcuts 
+                  shortcuts={shortcuts}
+                  onShortcutsChange={setShortcuts}
+                />
                 {totalPages > 1 && (
                   <div className="flex items-center gap-1 mr-4">
                     <Button
@@ -201,9 +302,9 @@ export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEva
         </CardHeader>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Photo Display */}
-        <Card className="lg:col-span-2 shadow-card border-0 bg-card/50 backdrop-blur-sm">
+        <Card className="lg:col-span-3 shadow-card border-0 bg-card/50 backdrop-blur-sm">
           <CardHeader>
             <div className="flex items-center justify-between flex-wrap gap-2">
               <CardTitle className="flex items-center gap-2 min-w-0">
@@ -254,62 +355,95 @@ export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEva
           </CardContent>
         </Card>
 
-        {/* Evaluation Panel */}
-        <Card className="shadow-card border-0 bg-card/50 backdrop-blur-sm">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Critérios de Avaliação</CardTitle>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={resetCurrentEvaluation}
-                disabled={currentCriteria.length === 0}
-              >
-                <RotateCcw className="w-4 h-4" />
-              </Button>
-            </div>
-            <div className="text-center py-4 bg-gradient-to-r from-primary/10 to-primary-glow/10 rounded-lg border border-primary/20">
-              <div className="text-3xl font-bold text-primary">{Math.max(0, currentScore).toFixed(1)}</div>
-              <div className="text-sm text-muted-foreground">Pontuação Atual</div>
-              <div className="text-xs text-muted-foreground mt-1">
-                {currentCriteria.length === 0 ? 'Nota máxima (10.0)' : `${currentCriteria.length} critério(s) aplicado(s)`}
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {CRITERIA.map((criterion) => {
-              const isChecked = currentCriteria.includes(criterion.name);
-              return (
-                <div 
-                  key={criterion.name}
-                  className={`flex items-center space-x-3 p-3 rounded-lg border transition-all cursor-pointer ${
-                    isChecked 
-                      ? 'bg-destructive/5 border-destructive/30' 
-                      : 'bg-background/50 border-border hover:border-primary/30'
-                  }`}
-                  onClick={() => toggleCriterion(criterion.name)}
+        {/* Side Panel */}
+        <div className="space-y-6">
+          {/* Watermark Remover */}
+          <WatermarkRemover
+            imageUrl={currentPhoto.url}
+            imageName={currentPhoto.name}
+            onImageUpdated={handleImageUpdate}
+          />
+
+          {/* Quick Score Buttons */}
+          <Card className="shadow-card border-0 bg-card/50 backdrop-blur-sm">
+            <CardHeader>
+              <CardTitle className="text-sm">Pontuação Rápida</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {[10, 9, 8, 7, 6, 5].map(score => (
+                <Button
+                  key={score}
+                  variant={Math.max(0, currentScore) === score ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setDirectScore(score)}
+                  className="w-full justify-between"
                 >
-                  <Checkbox
-                    id={criterion.name}
-                    checked={isChecked}
-                    onCheckedChange={() => toggleCriterion(criterion.name)}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <label 
-                      htmlFor={criterion.name} 
-                      className="text-sm font-medium cursor-pointer"
-                    >
-                      {criterion.name}
-                    </label>
-                    <div className="text-xs text-muted-foreground">
-                      -{criterion.penalty} ponto{criterion.penalty !== 1 ? 's' : ''}
+                  <span>Nota {score}</span>
+                  <Badge variant="secondary" className="text-xs">
+                    {shortcuts[`score${score}` as keyof ShortcutConfig]?.replace('Digit', '') || score.toString()}
+                  </Badge>
+                </Button>
+              ))}
+            </CardContent>
+          </Card>
+
+          {/* Evaluation Panel */}
+          <Card className="shadow-card border-0 bg-card/50 backdrop-blur-sm">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Critérios de Avaliação</CardTitle>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={resetCurrentEvaluation}
+                  disabled={currentCriteria.length === 0}
+                >
+                  <RotateCcw className="w-4 h-4" />
+                </Button>
+              </div>
+              <div className="text-center py-4 bg-gradient-to-r from-primary/10 to-primary-glow/10 rounded-lg border border-primary/20">
+                <div className="text-3xl font-bold text-primary">{Math.max(0, currentScore).toFixed(1)}</div>
+                <div className="text-sm text-muted-foreground">Pontuação Atual</div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {currentCriteria.length === 0 ? 'Nota máxima (10.0)' : `${currentCriteria.length} critério(s) aplicado(s)`}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {CRITERIA.map((criterion) => {
+                const isChecked = currentCriteria.includes(criterion.name);
+                return (
+                  <div 
+                    key={criterion.name}
+                    className={`flex items-center space-x-3 p-3 rounded-lg border transition-all cursor-pointer ${
+                      isChecked 
+                        ? 'bg-destructive/5 border-destructive/30' 
+                        : 'bg-background/50 border-border hover:border-primary/30'
+                    }`}
+                    onClick={() => toggleCriterion(criterion.name)}
+                  >
+                    <Checkbox
+                      id={criterion.name}
+                      checked={isChecked}
+                      onCheckedChange={() => toggleCriterion(criterion.name)}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <label 
+                        htmlFor={criterion.name} 
+                        className="text-sm font-medium cursor-pointer"
+                      >
+                        {criterion.name}
+                      </label>
+                      <div className="text-xs text-muted-foreground">
+                        -{criterion.penalty} ponto{criterion.penalty !== 1 ? 's' : ''}
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
+                );
+              })}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
