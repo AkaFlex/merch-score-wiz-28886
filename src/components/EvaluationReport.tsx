@@ -151,6 +151,123 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
     document.body.removeChild(link);
   };
 
+  // Criteria with penalties for showing in PDF
+  const CRITERIA = [
+    { name: 'Buraco na Sessão', penalty: 1 },
+    { name: 'Agrupamento', penalty: 2 },
+    { name: 'Alinhamento', penalty: 2 },
+    { name: 'Cores e Padrão da Categoria', penalty: 1 },
+    { name: 'Precificação', penalty: 0.5 },
+    { name: 'Limpeza', penalty: 0.5 },
+    { name: 'Qualidade de Foto', penalty: 0.5 },
+    { name: 'Poluição Visual', penalty: 1 },
+    { name: 'Posicionamento na Gôndola', penalty: 1 },
+    { name: 'Avaria', penalty: 1 },
+    { name: 'Espaçamento', penalty: 2 },
+    { name: 'Fora de Layout', penalty: 3 },
+  ];
+
+  // Watermark removal function (simplified version from WatermarkRemover)
+  const removeWatermarkFromImage = async (imageUrl: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        if (!ctx) {
+          resolve(imageUrl); // Return original if can't process
+          return;
+        }
+
+        canvas.width = img.width;
+        canvas.height = img.height;
+        
+        // Draw image to canvas
+        ctx.drawImage(img, 0, 0);
+        
+        // Get image data
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        
+        // Simple watermark removal algorithm
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          const a = data[i + 3];
+          
+          // Detect light areas (potential watermarks)
+          const brightness = (r + g + b) / 3;
+          const isLightWatermark = brightness > 200 && a > 100;
+          
+          if (isLightWatermark) {
+            // Try to blend with surrounding pixels
+            const neighbors = getNeighborPixels(data, i / 4, canvas.width, canvas.height);
+            if (neighbors.length > 0) {
+              const avgR = neighbors.reduce((sum, p) => sum + p.r, 0) / neighbors.length;
+              const avgG = neighbors.reduce((sum, p) => sum + p.g, 0) / neighbors.length;
+              const avgB = neighbors.reduce((sum, p) => sum + p.b, 0) / neighbors.length;
+              
+              data[i] = avgR;
+              data[i + 1] = avgG;
+              data[i + 2] = avgB;
+            }
+          }
+        }
+        
+        // Put processed image data back
+        ctx.putImageData(imageData, 0, 0);
+        
+        // Convert to blob and create new URL
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const newUrl = URL.createObjectURL(blob);
+            resolve(newUrl);
+          } else {
+            resolve(imageUrl); // Return original if can't process
+          }
+        }, 'image/jpeg', 0.9);
+      };
+      
+      img.onerror = () => resolve(imageUrl); // Return original if can't load
+      img.src = imageUrl;
+    });
+  };
+
+  const getNeighborPixels = (data: Uint8ClampedArray, pixelIndex: number, width: number, height: number) => {
+    const neighbors = [];
+    const x = pixelIndex % width;
+    const y = Math.floor(pixelIndex / width);
+    
+    // Check 8 surrounding pixels
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dy === 0) continue;
+        
+        const nx = x + dx;
+        const ny = y + dy;
+        
+        if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+          const neighborIndex = (ny * width + nx) * 4;
+          const r = data[neighborIndex];
+          const g = data[neighborIndex + 1];
+          const b = data[neighborIndex + 2];
+          const brightness = (r + g + b) / 3;
+          
+          // Only use darker pixels as reference
+          if (brightness < 200) {
+            neighbors.push({ r, g, b });
+          }
+        }
+      }
+    }
+    
+    return neighbors;
+  };
+
   const exportToPDF = async () => {
     const pdf = new jsPDF('p', 'mm', 'a4');
     const pageWidth = pdf.internal.pageSize.getWidth();
@@ -177,6 +294,9 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
       }
       
       try {
+        // Remove watermark from image before processing
+        const cleanImageUrl = await removeWatermarkFromImage(photo.url);
+        
         const img = new Image();
         img.crossOrigin = 'anonymous';
         
@@ -246,7 +366,7 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
             
             resolve(void 0);
           };
-          img.src = photo.url;
+          img.src = cleanImageUrl;
         });
         
         // Add text details with proper width management
@@ -267,11 +387,16 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
         
         const problems = photo.evaluation?.criteria || [];
         if (problems.length > 0) {
-          pdf.text('Problemas:', textX, textY);
+          pdf.text('Problemas identificados:', textX, textY);
           textY += 8;
           
           problems.forEach((problem) => {
-            const problemLines = pdf.splitTextToSize(`• ${problem}`, maxTextWidth);
+            // Find the penalty for this criterion
+            const criterion = CRITERIA.find(c => c.name === problem);
+            const penalty = criterion ? criterion.penalty : 0;
+            
+            const problemText = `• ${problem} (-${penalty} pts)`;
+            const problemLines = pdf.splitTextToSize(problemText, maxTextWidth);
             pdf.text(problemLines, textX, textY);
             textY += problemLines.length * 5 + 2;
           });

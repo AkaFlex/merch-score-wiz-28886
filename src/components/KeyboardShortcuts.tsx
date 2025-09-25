@@ -10,12 +10,16 @@ import { Badge } from '@/components/ui/badge';
 export interface ShortcutConfig {
   nextPhoto: string;
   prevPhoto: string;
-  score10: string;
-  score9: string;
-  score8: string;
-  score7: string;
-  score6: string;
-  score5: string;
+  criterion1: string; // Buraco na Sessão
+  criterion2: string; // Agrupamento  
+  criterion3: string; // Alinhamento
+  criterion4: string; // Cores e Padrão
+  criterion5: string; // Precificação
+  criterion6: string; // Limpeza
+  criterion7: string; // Qualidade de Foto
+  criterion8: string; // Poluição Visual
+  criterion9: string; // Posicionamento na Gôndola
+  criterion0: string; // Avaria
   resetScore: string;
   removePhoto: string;
 }
@@ -28,12 +32,16 @@ interface KeyboardShortcutsProps {
 const defaultShortcuts: ShortcutConfig = {
   nextPhoto: 'ArrowRight',
   prevPhoto: 'ArrowLeft',
-  score10: 'Digit0',
-  score9: 'Digit9',
-  score8: 'Digit8',
-  score7: 'Digit7',
-  score6: 'Digit6',
-  score5: 'Digit5',
+  criterion1: 'Digit1',
+  criterion2: 'Digit2',
+  criterion3: 'Digit3',
+  criterion4: 'Digit4',
+  criterion5: 'Digit5',
+  criterion6: 'Digit6',
+  criterion7: 'Digit7',
+  criterion8: 'Digit8',
+  criterion9: 'Digit9',
+  criterion0: 'Digit0',
   resetScore: 'KeyR',
   removePhoto: 'Delete'
 };
@@ -41,12 +49,16 @@ const defaultShortcuts: ShortcutConfig = {
 const shortcutLabels = {
   nextPhoto: 'Próxima Foto',
   prevPhoto: 'Foto Anterior',
-  score10: 'Pontuação 10',
-  score9: 'Pontuação 9',
-  score8: 'Pontuação 8',
-  score7: 'Pontuação 7',
-  score6: 'Pontuação 6',
-  score5: 'Pontuação 5',
+  criterion1: 'Buraco na Sessão',
+  criterion2: 'Agrupamento',
+  criterion3: 'Alinhamento',
+  criterion4: 'Cores e Padrão',
+  criterion5: 'Precificação',
+  criterion6: 'Limpeza',
+  criterion7: 'Qualidade de Foto',
+  criterion8: 'Poluição Visual',
+  criterion9: 'Posicionamento na Gôndola',
+  criterion0: 'Avaria',
   resetScore: 'Resetar Avaliação',
   removePhoto: 'Remover Foto'
 };

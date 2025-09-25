@@ -38,12 +38,16 @@ export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEva
   const [shortcuts, setShortcuts] = useLocalStorage<ShortcutConfig>('photo-evaluation-shortcuts', {
     nextPhoto: 'ArrowRight',
     prevPhoto: 'ArrowLeft', 
-    score10: 'Digit0',
-    score9: 'Digit9',
-    score8: 'Digit8',
-    score7: 'Digit7',
-    score6: 'Digit6',
-    score5: 'Digit5',
+    criterion1: 'Digit1', // Buraco na Sessão
+    criterion2: 'Digit2', // Agrupamento
+    criterion3: 'Digit3', // Alinhamento
+    criterion4: 'Digit4', // Cores e Padrão
+    criterion5: 'Digit5', // Precificação
+    criterion6: 'Digit6', // Limpeza
+    criterion7: 'Digit7', // Qualidade de Foto
+    criterion8: 'Digit8', // Poluição Visual
+    criterion9: 'Digit9', // Posicionamento na Gôndola
+    criterion0: 'Digit0', // Avaria
     resetScore: 'KeyR',
     removePhoto: 'Delete'
   });
@@ -90,31 +94,6 @@ export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEva
       return { ...prev, [photoId]: newList };
     });
   };
-
-  const setDirectScore = useCallback((targetScore: number) => {
-    const photoId = currentPhoto.id;
-    
-    // Calculate which criteria to apply to reach the target score
-    let remainingPenalty = 10 - targetScore;
-    const criteriaToApply: string[] = [];
-    
-    // Sort criteria by penalty (descending) for optimal combination
-    const sortedCriteria = [...CRITERIA].sort((a, b) => b.penalty - a.penalty);
-    
-    for (const criterion of sortedCriteria) {
-      if (remainingPenalty >= criterion.penalty) {
-        criteriaToApply.push(criterion.name);
-        remainingPenalty -= criterion.penalty;
-        
-        if (remainingPenalty <= 0) break;
-      }
-    }
-    
-    setEvaluations(prev => ({
-      ...prev,
-      [photoId]: criteriaToApply
-    }));
-  }, [currentPhoto.id]);
 
   const navigatePhoto = (direction: 'prev' | 'next') => {
     if (direction === 'prev' && currentPhotoIndex > 0) {
@@ -215,26 +194,38 @@ export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEva
     } else if (key === shortcuts.removePhoto) {
       event.preventDefault();
       removeCurrentPhoto();
-    } else if (key === shortcuts.score10) {
+    } else if (key === shortcuts.criterion1) {
       event.preventDefault();
-      setDirectScore(10);
-    } else if (key === shortcuts.score9) {
+      toggleCriterion('Buraco na Sessão');
+    } else if (key === shortcuts.criterion2) {
       event.preventDefault();
-      setDirectScore(9);
-    } else if (key === shortcuts.score8) {
+      toggleCriterion('Agrupamento');
+    } else if (key === shortcuts.criterion3) {
       event.preventDefault();
-      setDirectScore(8);
-    } else if (key === shortcuts.score7) {
+      toggleCriterion('Alinhamento');
+    } else if (key === shortcuts.criterion4) {
       event.preventDefault();
-      setDirectScore(7);
-    } else if (key === shortcuts.score6) {
+      toggleCriterion('Cores e Padrão da Categoria');
+    } else if (key === shortcuts.criterion5) {
       event.preventDefault();
-      setDirectScore(6);
-    } else if (key === shortcuts.score5) {
+      toggleCriterion('Precificação');
+    } else if (key === shortcuts.criterion6) {
       event.preventDefault();
-      setDirectScore(5);
+      toggleCriterion('Limpeza');
+    } else if (key === shortcuts.criterion7) {
+      event.preventDefault();
+      toggleCriterion('Qualidade de Foto');
+    } else if (key === shortcuts.criterion8) {
+      event.preventDefault();
+      toggleCriterion('Poluição Visual');
+    } else if (key === shortcuts.criterion9) {
+      event.preventDefault();
+      toggleCriterion('Posicionamento na Gôndola');
+    } else if (key === shortcuts.criterion0) {
+      event.preventDefault();
+      toggleCriterion('Avaria');
     }
-  }, [shortcuts, setDirectScore]);
+  }, [shortcuts, toggleCriterion, navigatePhoto, resetCurrentEvaluation, removeCurrentPhoto]);
 
   useEffect(() => {
     document.addEventListener('keydown', handleKeyPress);
@@ -363,29 +354,6 @@ export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEva
             imageName={currentPhoto.name}
             onImageUpdated={handleImageUpdate}
           />
-
-          {/* Quick Score Buttons */}
-          <Card className="shadow-card border-0 bg-card/50 backdrop-blur-sm">
-            <CardHeader>
-              <CardTitle className="text-sm">Pontuação Rápida</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {[10, 9, 8, 7, 6, 5].map(score => (
-                <Button
-                  key={score}
-                  variant={Math.max(0, currentScore) === score ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setDirectScore(score)}
-                  className="w-full justify-between"
-                >
-                  <span>Nota {score}</span>
-                  <Badge variant="secondary" className="text-xs">
-                    {shortcuts[`score${score}` as keyof ShortcutConfig]?.replace('Digit', '') || score.toString()}
-                  </Badge>
-                </Button>
-              ))}
-            </CardContent>
-          </Card>
 
           {/* Evaluation Panel */}
           <Card className="shadow-card border-0 bg-card/50 backdrop-blur-sm">
