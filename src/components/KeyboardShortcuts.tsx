@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export interface ShortcutConfig {
   nextPhoto: string;
@@ -137,46 +138,48 @@ export const KeyboardShortcuts = ({ shortcuts, onShortcutsChange }: KeyboardShor
           Atalhos
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[90vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Settings className="w-5 h-5" />
             Configurar Atalhos de Teclado
           </DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {Object.entries(shortcutLabels).map(([key, label]) => (
-              <div key={key} className="space-y-2">
-                <Label htmlFor={key}>{label}</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id={key}
-                    value=""
-                    placeholder="Pressione uma tecla..."
-                    onKeyDown={(e) => handleKeyCapture(key as keyof ShortcutConfig, e)}
-                    className="flex-1"
-                    readOnly
-                  />
-                  <Badge variant="secondary" className="min-w-[40px] text-center">
-                    {getKeyDisplay(editingShortcuts[key as keyof ShortcutConfig])}
-                  </Badge>
+        <ScrollArea className="h-[60vh] pr-4">
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {Object.entries(shortcutLabels).map(([key, label]) => (
+                <div key={key} className="space-y-2">
+                  <Label htmlFor={key}>{label}</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      id={key}
+                      value=""
+                      placeholder="Pressione uma tecla..."
+                      onKeyDown={(e) => handleKeyCapture(key as keyof ShortcutConfig, e)}
+                      className="flex-1"
+                      readOnly
+                    />
+                    <Badge variant="secondary" className="min-w-[40px] text-center">
+                      {getKeyDisplay(editingShortcuts[key as keyof ShortcutConfig])}
+                    </Badge>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-          <div className="flex justify-between pt-4">
-            <Button variant="outline" onClick={handleReset}>
-              Restaurar Padrão
-            </Button>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => setIsOpen(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleSave}>
-                Salvar Atalhos
-              </Button>
+              ))}
             </div>
+          </div>
+        </ScrollArea>
+        <div className="flex justify-between pt-4 border-t">
+          <Button variant="outline" onClick={handleReset}>
+            Restaurar Padrão
+          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSave}>
+              Salvar Atalhos
+            </Button>
           </div>
         </div>
       </DialogContent>
