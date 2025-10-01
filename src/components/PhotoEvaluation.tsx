@@ -61,33 +61,11 @@ export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEva
   const currentPagePhotos = photos.slice(startIndex, endIndex);
   const relativePhotoIndex = currentPhotoIndex - startIndex;
 
-  // Safety check for empty photos or invalid index
-  if (!photos || photos.length === 0) {
-    return (
-      <div className="max-w-7xl mx-auto space-y-6 text-center py-12">
-        <h2 className="text-2xl font-bold text-muted-foreground">Nenhuma foto para avaliar</h2>
-        <p className="text-muted-foreground">Faça o upload de fotos primeiro.</p>
-      </div>
-    );
-  }
-
-  const currentPhoto = photos[currentPhotoIndex];
-  if (!currentPhoto) {
-    setCurrentPhotoIndex(0);
-    return null;
-  }
-  
-  const currentCriteria = evaluations[currentPhoto.id] || [];
-  const currentScore = 10 - CRITERIA.reduce((total, criterion) => {
-    return currentCriteria.includes(criterion.name) ? total + criterion.penalty : total;
-  }, 0);
-
-  const evaluatedCount = Object.keys(evaluations).length;
-  const progress = (evaluatedCount / photos.length) * 100;
-
-  const toggleCriterion = (criterionName: string) => {
+  const toggleCriterion = useCallback((criterionName: string) => {
+    if (!photos[currentPhotoIndex]) return;
+    
     setEvaluations(prev => {
-      const photoId = currentPhoto.id;
+      const photoId = photos[currentPhotoIndex].id;
       const currentList = prev[photoId] || [];
       const newList = currentList.includes(criterionName)
         ? currentList.filter(c => c !== criterionName)
@@ -95,9 +73,9 @@ export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEva
       
       return { ...prev, [photoId]: newList };
     });
-  };
+  }, [currentPhotoIndex, photos, setEvaluations]);
 
-  const navigatePhoto = (direction: 'prev' | 'next') => {
+  const navigatePhoto = useCallback((direction: 'prev' | 'next') => {
     if (direction === 'prev' && currentPhotoIndex > 0) {
       const newIndex = currentPhotoIndex - 1;
       setCurrentPhotoIndex(newIndex);
@@ -115,28 +93,27 @@ export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEva
         setCurrentPage(currentPage + 1);
       }
     }
-  };
+  }, [currentPhotoIndex, photos.length, startIndex, currentPage, endIndex, totalPages]);
 
-  const goToPage = (page: number) => {
-    setCurrentPage(page);
-    setCurrentPhotoIndex(page * PHOTOS_PER_PAGE);
-  };
-
-  const resetCurrentEvaluation = () => {
+  const resetCurrentEvaluation = useCallback(() => {
+    if (!photos[currentPhotoIndex]) return;
+    
     setEvaluations(prev => {
       const newEvaluations = { ...prev };
-      delete newEvaluations[currentPhoto.id];
+      delete newEvaluations[photos[currentPhotoIndex].id];
       return newEvaluations;
     });
-  };
+  }, [currentPhotoIndex, photos, setEvaluations]);
 
-  const removeCurrentPhoto = () => {
-    const updatedPhotos = photos.filter(photo => photo.id !== currentPhoto.id);
+  const removeCurrentPhoto = useCallback(() => {
+    if (!photos[currentPhotoIndex]) return;
+    
+    const updatedPhotos = photos.filter(photo => photo.id !== photos[currentPhotoIndex].id);
     
     // Remove evaluation for this photo
     setEvaluations(prev => {
       const newEvaluations = { ...prev };
-      delete newEvaluations[currentPhoto.id];
+      delete newEvaluations[photos[currentPhotoIndex].id];
       return newEvaluations;
     });
 
@@ -150,31 +127,7 @@ export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEva
     }
 
     onPhotosUpdate(updatedPhotos);
-  };
-
-  const completeEvaluation = () => {
-    const evaluatedPhotos = photos.map(photo => ({
-      ...photo,
-      evaluation: {
-        score: evaluations[photo.id] ? 
-          10 - CRITERIA.reduce((total, criterion) => {
-            return evaluations[photo.id].includes(criterion.name) ? total + criterion.penalty : total;
-          }, 0) : 10,
-        criteria: evaluations[photo.id] || []
-      }
-    }));
-    
-    onComplete(evaluatedPhotos);
-  };
-
-  const handleImageUpdate = (newUrl: string) => {
-    const updatedPhotos = photos.map(photo => 
-      photo.id === currentPhoto.id 
-        ? { ...photo, url: newUrl }
-        : photo
-    );
-    onPhotosUpdate(updatedPhotos);
-  };
+  }, [currentPhotoIndex, photos, setEvaluations, onPhotosUpdate]);
 
   const handleKeyPress = useCallback((event: KeyboardEvent) => {
     // Prevent keyboard shortcuts when typing in inputs
@@ -250,6 +203,64 @@ export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEva
       document.removeEventListener('keydown', handleKeyPress);
     };
   }, [handleKeyPress]);
+
+  // Safety check for empty photos or invalid index - AFTER all hooks
+  if (!photos || photos.length === 0) {
+    return (
+      <div className="max-w-7xl mx-auto space-y-6 text-center py-12">
+        <h2 className="text-2xl font-bold text-muted-foreground">Nenhuma foto para avaliar</h2>
+        <p className="text-muted-foreground">Faça o upload de fotos primeiro.</p>
+      </div>
+    );
+  }
+
+  const currentPhoto = photos[currentPhotoIndex];
+  if (!currentPhoto) {
+    // Fix index if out of bounds
+    if (currentPhotoIndex > 0) {
+      setCurrentPhotoIndex(0);
+    }
+    return null;
+  }
+  
+  const currentCriteria = evaluations[currentPhoto.id] || [];
+  const currentScore = 10 - CRITERIA.reduce((total, criterion) => {
+    return currentCriteria.includes(criterion.name) ? total + criterion.penalty : total;
+  }, 0);
+
+  const evaluatedCount = Object.keys(evaluations).length;
+  const progress = (evaluatedCount / photos.length) * 100;
+
+  const goToPage = (page: number) => {
+    setCurrentPage(page);
+    setCurrentPhotoIndex(page * PHOTOS_PER_PAGE);
+  };
+
+  const completeEvaluation = () => {
+    const evaluatedPhotos = photos.map(photo => ({
+      ...photo,
+      evaluation: {
+        score: evaluations[photo.id] ? 
+          10 - CRITERIA.reduce((total, criterion) => {
+            return evaluations[photo.id].includes(criterion.name) ? total + criterion.penalty : total;
+          }, 0) : 10,
+        criteria: evaluations[photo.id] || []
+      }
+    }));
+    
+    onComplete(evaluatedPhotos);
+  };
+
+  const handleImageUpdate = (newUrl: string) => {
+    if (!currentPhoto) return;
+    
+    const updatedPhotos = photos.map(photo => 
+      photo.id === currentPhoto.id 
+        ? { ...photo, url: newUrl }
+        : photo
+    );
+    onPhotosUpdate(updatedPhotos);
+  };
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
