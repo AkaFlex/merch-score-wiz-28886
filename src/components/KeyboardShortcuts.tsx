@@ -20,6 +20,8 @@ export interface ShortcutConfig {
   criterion8: string; // Poluição Visual
   criterion9: string; // Posicionamento na Gôndola
   criterion0: string; // Avaria
+  criterion11: string; // Espaçamento
+  criterion12: string; // Fora de Layout
   resetScore: string;
   removePhoto: string;
 }
@@ -42,6 +44,8 @@ const defaultShortcuts: ShortcutConfig = {
   criterion8: 'Digit8',
   criterion9: 'Digit9',
   criterion0: 'Digit0',
+  criterion11: 'KeyE',
+  criterion12: 'KeyF',
   resetScore: 'KeyR',
   removePhoto: 'Delete'
 };
@@ -59,6 +63,8 @@ const shortcutLabels = {
   criterion8: 'Poluição Visual',
   criterion9: 'Posicionamento na Gôndola',
   criterion0: 'Avaria',
+  criterion11: 'Espaçamento',
+  criterion12: 'Fora de Layout',
   resetScore: 'Resetar Avaliação',
   removePhoto: 'Remover Foto'
 };
@@ -78,6 +84,18 @@ const keyDisplayNames: Record<string, string> = {
   'Digit7': '7',
   'Digit8': '8',
   'Digit9': '9',
+  'Numpad0': 'Num0',
+  'Numpad1': 'Num1',
+  'Numpad2': 'Num2',
+  'Numpad3': 'Num3',
+  'Numpad4': 'Num4',
+  'Numpad5': 'Num5',
+  'Numpad6': 'Num6',
+  'Numpad7': 'Num7',
+  'Numpad8': 'Num8',
+  'Numpad9': 'Num9',
+  'KeyE': 'E',
+  'KeyF': 'F',
   'KeyR': 'R',
   'Delete': 'Del',
   'Backspace': '⌫',

@@ -24,7 +24,7 @@ const CRITERIA = [
   { name: 'Precificação', penalty: 0.5 },
   { name: 'Limpeza', penalty: 0.5 },
   { name: 'Qualidade de Foto', penalty: 0.5 },
-  { name: 'Poluição Visual', penalty: 1 },
+  { name: 'Poluição Visual', penalty: 0.5 },
   { name: 'Posicionamento na Gôndola', penalty: 1 },
   { name: 'Avaria', penalty: 1 },
   { name: 'Espaçamento', penalty: 2 },
@@ -33,7 +33,7 @@ const CRITERIA = [
 
 export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEvaluationProps) => {
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
-  const [evaluations, setEvaluations] = useState<Record<string, string[]>>({});
+  const [evaluations, setEvaluations] = useLocalStorage<Record<string, string[]>>('photo-evaluations', {});
   const [currentPage, setCurrentPage] = useState(0);
   const [shortcuts, setShortcuts] = useLocalStorage<ShortcutConfig>('photo-evaluation-shortcuts', {
     nextPhoto: 'ArrowRight',
@@ -48,6 +48,8 @@ export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEva
     criterion8: 'Digit8', // Poluição Visual
     criterion9: 'Digit9', // Posicionamento na Gôndola
     criterion0: 'Digit0', // Avaria
+    criterion11: 'KeyE', // Espaçamento
+    criterion12: 'KeyF', // Fora de Layout
     resetScore: 'KeyR',
     removePhoto: 'Delete'
   });
@@ -182,48 +184,63 @@ export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEva
 
     const key = event.code;
     
-    if (key === shortcuts.nextPhoto) {
+    // Helper to check if key matches shortcut (including Numpad variants)
+    const matchesShortcut = (shortcut: string) => {
+      if (key === shortcut) return true;
+      // Support Numpad variants for digit keys
+      if (shortcut.startsWith('Digit') && key === shortcut.replace('Digit', 'Numpad')) return true;
+      if (shortcut.startsWith('Numpad') && key === shortcut.replace('Numpad', 'Digit')) return true;
+      return false;
+    };
+    
+    if (matchesShortcut(shortcuts.nextPhoto)) {
       event.preventDefault();
       navigatePhoto('next');
-    } else if (key === shortcuts.prevPhoto) {
+    } else if (matchesShortcut(shortcuts.prevPhoto)) {
       event.preventDefault();
       navigatePhoto('prev');
-    } else if (key === shortcuts.resetScore) {
+    } else if (matchesShortcut(shortcuts.resetScore)) {
       event.preventDefault();
       resetCurrentEvaluation();
-    } else if (key === shortcuts.removePhoto) {
+    } else if (matchesShortcut(shortcuts.removePhoto)) {
       event.preventDefault();
       removeCurrentPhoto();
-    } else if (key === shortcuts.criterion1) {
+    } else if (matchesShortcut(shortcuts.criterion1)) {
       event.preventDefault();
       toggleCriterion('Buraco na Sessão');
-    } else if (key === shortcuts.criterion2) {
+    } else if (matchesShortcut(shortcuts.criterion2)) {
       event.preventDefault();
       toggleCriterion('Agrupamento');
-    } else if (key === shortcuts.criterion3) {
+    } else if (matchesShortcut(shortcuts.criterion3)) {
       event.preventDefault();
       toggleCriterion('Alinhamento');
-    } else if (key === shortcuts.criterion4) {
+    } else if (matchesShortcut(shortcuts.criterion4)) {
       event.preventDefault();
       toggleCriterion('Cores e Padrão da Categoria');
-    } else if (key === shortcuts.criterion5) {
+    } else if (matchesShortcut(shortcuts.criterion5)) {
       event.preventDefault();
       toggleCriterion('Precificação');
-    } else if (key === shortcuts.criterion6) {
+    } else if (matchesShortcut(shortcuts.criterion6)) {
       event.preventDefault();
       toggleCriterion('Limpeza');
-    } else if (key === shortcuts.criterion7) {
+    } else if (matchesShortcut(shortcuts.criterion7)) {
       event.preventDefault();
       toggleCriterion('Qualidade de Foto');
-    } else if (key === shortcuts.criterion8) {
+    } else if (matchesShortcut(shortcuts.criterion8)) {
       event.preventDefault();
       toggleCriterion('Poluição Visual');
-    } else if (key === shortcuts.criterion9) {
+    } else if (matchesShortcut(shortcuts.criterion9)) {
       event.preventDefault();
       toggleCriterion('Posicionamento na Gôndola');
-    } else if (key === shortcuts.criterion0) {
+    } else if (matchesShortcut(shortcuts.criterion0)) {
       event.preventDefault();
       toggleCriterion('Avaria');
+    } else if (matchesShortcut(shortcuts.criterion11)) {
+      event.preventDefault();
+      toggleCriterion('Espaçamento');
+    } else if (matchesShortcut(shortcuts.criterion12)) {
+      event.preventDefault();
+      toggleCriterion('Fora de Layout');
     }
   }, [shortcuts, toggleCriterion, navigatePhoto, resetCurrentEvaluation, removeCurrentPhoto]);
 
