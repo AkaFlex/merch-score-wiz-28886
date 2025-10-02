@@ -76,7 +76,8 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
     // Create headers - each criterion as separate column
     const headers = [
       'Nome da Foto',
-      'Responsável',
+      'Promotor',
+      'Líder',
       'Nota Final',
       'Status',
       'Total de Problemas',
@@ -99,6 +100,7 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
       const row = [
         photo.name,
         photo.promoter || 'Não Atribuído',
+        photo.leader || 'Não Atribuído',
         score.toFixed(1),
         getStatus(score),
         criteria.length.toString()
@@ -253,18 +255,28 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
         // Split long text to avoid overflow
         const promoterLines = pdf.splitTextToSize(`Promotor: ${photo.promoter || 'Não Atribuído'}`, maxTextWidth);
         
-        let textY = currentY + 15;
+        let textY = currentY + 10;
         
+        pdf.setFontSize(12);
         pdf.text(promoterLines, textX, textY);
-        textY += promoterLines.length * 5 + 5;
+        textY += promoterLines.length * 5 + 3;
         
         if (photo.leader) {
+          pdf.setFontSize(11);
+          pdf.setTextColor(0, 100, 200); // Blue color for leader
           const leaderLines = pdf.splitTextToSize(`Líder: ${photo.leader}`, maxTextWidth);
           pdf.text(leaderLines, textX, textY);
-          textY += leaderLines.length * 5 + 5;
+          pdf.setTextColor(0, 0, 0); // Reset to black
+          textY += leaderLines.length * 5 + 8;
+        } else {
+          textY += 5;
         }
         
+        pdf.setFontSize(14);
+        pdf.setFont(undefined, 'bold');
         pdf.text(`Nota: ${score.toFixed(1)}`, textX, textY);
+        pdf.setFont(undefined, 'normal');
+        pdf.setFontSize(12);
         textY += 10;
         
         const problems = photo.evaluation?.criteria || [];
@@ -486,8 +498,18 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
                   
                   <div className="flex-1 min-w-0">
                     <div className="font-medium truncate">{photo.name}</div>
-                    <div className="text-sm text-muted-foreground">
-                      {photo.evaluation?.criteria.length || 0} critério(s) fora do padrão
+                    <div className="text-sm text-muted-foreground space-y-1">
+                      <div>
+                        <span className="font-semibold">Promotor:</span> {photo.promoter || 'Não Atribuído'}
+                      </div>
+                      {photo.leader && (
+                        <div>
+                          <span className="font-semibold">Líder:</span> {photo.leader}
+                        </div>
+                      )}
+                      <div>
+                        {photo.evaluation?.criteria.length || 0} critério(s) fora do padrão
+                      </div>
                     </div>
                   </div>
                   
@@ -548,10 +570,19 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
             </div>
             
             <div className="p-6 bg-background">
-              <h3 className="text-xl font-bold mb-2">{selectedPhoto.name}</h3>
-              <p className="text-muted-foreground mb-4">
-                Promoter: {selectedPhoto.promoter || 'Não Atribuído'}
-              </p>
+              <h3 className="text-xl font-bold mb-4">{selectedPhoto.name}</h3>
+              <div className="space-y-2 mb-4 p-4 bg-muted/50 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-foreground">Promotor:</span>
+                  <span className="text-muted-foreground">{selectedPhoto.promoter || 'Não Atribuído'}</span>
+                </div>
+                {selectedPhoto.leader && (
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-primary">Líder:</span>
+                    <span className="text-primary font-medium">{selectedPhoto.leader}</span>
+                  </div>
+                )}
+              </div>
               
               {selectedPhoto.evaluation?.criteria && selectedPhoto.evaluation.criteria.length > 0 ? (
                 <div>
