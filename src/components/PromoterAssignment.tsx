@@ -5,11 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import type { Photo } from '@/pages/Index';
+import type { Photo, Promoter } from '@/pages/Index';
 
 interface PromoterAssignmentProps {
   photos: Photo[];
-  promoters: string[];
+  promoters: Promoter[];
   onPhotosUpdate: (photos: Photo[]) => void;
 }
 
@@ -37,9 +37,12 @@ export const PromoterAssignment = ({ photos, promoters, onPhotosUpdate }: Promot
   const assignPromoter = () => {
     if (!selectedPromoter || selectedPhotos.length === 0) return;
 
+    const promoterObj = promoters.find(p => p.name === selectedPromoter);
+    if (!promoterObj) return;
+
     const updatedPhotos = photos.map(photo =>
       selectedPhotos.includes(photo.id)
-        ? { ...photo, promoter: selectedPromoter }
+        ? { ...photo, promoter: promoterObj.name, leader: promoterObj.leader }
         : photo
     );
 
@@ -84,8 +87,8 @@ export const PromoterAssignment = ({ photos, promoters, onPhotosUpdate }: Promot
                 </SelectTrigger>
                 <SelectContent>
                   {promoters.map((promoter) => (
-                    <SelectItem key={promoter} value={promoter}>
-                      {promoter}
+                    <SelectItem key={promoter.name} value={promoter.name}>
+                      {promoter.name} - {promoter.leader}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -196,15 +199,18 @@ export const PromoterAssignment = ({ photos, promoters, onPhotosUpdate }: Promot
           <CardContent>
             <div className="space-y-6">
               {promoters
-                .filter(promoter => photosWithPromoter.some(p => p.promoter === promoter))
+                .filter(promoter => photosWithPromoter.some(p => p.promoter === promoter.name))
                 .map(promoter => {
-                  const promoterPhotos = photosWithPromoter.filter(p => p.promoter === promoter);
+                  const promoterPhotos = photosWithPromoter.filter(p => p.promoter === promoter.name);
                   const avgScore = promoterPhotos.reduce((sum, p) => sum + (p.evaluation?.score || 10), 0) / promoterPhotos.length;
                   
                   return (
-                    <div key={promoter}>
+                    <div key={promoter.name}>
                       <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-semibold text-lg">{promoter}</h4>
+                        <div>
+                          <h4 className="font-semibold text-lg">{promoter.name}</h4>
+                          <p className="text-sm text-muted-foreground">Líder: {promoter.leader}</p>
+                        </div>
                         <div className="flex items-center gap-3">
                           <Badge variant="outline">{promoterPhotos.length} fotos</Badge>
                           <div className={`font-bold ${getScoreColor(avgScore)}`}>
@@ -306,9 +312,16 @@ export const PromoterAssignment = ({ photos, promoters, onPhotosUpdate }: Promot
             
             <div className="p-6 bg-background">
               <h3 className="text-xl font-bold mb-2">{selectedPhoto.name}</h3>
-              <p className="text-muted-foreground mb-4">
-                Promoter: {selectedPhoto.promoter || 'Não Atribuído'}
-              </p>
+              <div className="space-y-1 mb-4">
+                <p className="text-muted-foreground">
+                  Promotor: {selectedPhoto.promoter || 'Não Atribuído'}
+                </p>
+                {selectedPhoto.leader && (
+                  <p className="text-sm text-muted-foreground">
+                    Líder: {selectedPhoto.leader}
+                  </p>
+                )}
+              </div>
               
               {selectedPhoto.evaluation?.criteria && selectedPhoto.evaluation.criteria.length > 0 ? (
                 <div>

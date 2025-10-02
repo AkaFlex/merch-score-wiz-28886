@@ -4,12 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
-import type { Photo } from '@/pages/Index';
+import type { Photo, Promoter } from '@/pages/Index';
 
 interface DataBackupProps {
   photos: Photo[];
-  promoters: string[];
-  onDataImport: (data: { photos: Photo[]; promoters: string[] }) => void;
+  promoters: Promoter[];
+  onDataImport: (data: { photos: Photo[]; promoters: Promoter[] }) => void;
 }
 
 export const DataBackup = ({ photos, promoters, onDataImport }: DataBackupProps) => {

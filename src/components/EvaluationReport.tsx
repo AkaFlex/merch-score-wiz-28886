@@ -251,12 +251,18 @@ export const EvaluationReport = ({ photos, onReset }: EvaluationReportProps) => 
         const maxTextWidth = pageWidth - textX - margin;
         
         // Split long text to avoid overflow
-        const promoterLines = pdf.splitTextToSize(`Promoter: ${photo.promoter || 'Não Atribuído'}`, maxTextWidth);
+        const promoterLines = pdf.splitTextToSize(`Promotor: ${photo.promoter || 'Não Atribuído'}`, maxTextWidth);
         
         let textY = currentY + 15;
         
         pdf.text(promoterLines, textX, textY);
         textY += promoterLines.length * 5 + 5;
+        
+        if (photo.leader) {
+          const leaderLines = pdf.splitTextToSize(`Líder: ${photo.leader}`, maxTextWidth);
+          pdf.text(leaderLines, textX, textY);
+          textY += leaderLines.length * 5 + 5;
+        }
         
         pdf.text(`Nota: ${score.toFixed(1)}`, textX, textY);
         textY += 10;

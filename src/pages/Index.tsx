@@ -13,6 +13,11 @@ import { DataBackup } from '@/components/DataBackup';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { toast } from 'sonner';
 
+export interface Promoter {
+  name: string;
+  leader: string;
+}
+
 export interface Photo {
   id: string;
   name: string;
@@ -22,12 +27,13 @@ export interface Photo {
     criteria: string[];
   };
   promoter?: string;
+  leader?: string;
 }
 
 const Index = () => {
   // Persistent state using localStorage
   const [photos, setPhotos, clearPhotos] = useLocalStorage<Photo[]>('merchandising-photos', []);
-  const [promoters, setPromoters, clearPromoters] = useLocalStorage<string[]>('merchandising-promoters', []);
+  const [promoters, setPromoters, clearPromoters] = useLocalStorage<Promoter[]>('merchandising-promoters', []);
   const [currentStep, setCurrentStep, clearStep] = useLocalStorage<'upload' | 'evaluate' | 'assign' | 'report'>('merchandising-step', 'upload');
   
   // Auto-save notification
