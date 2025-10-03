@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { UserCheck, Check, X, ZoomIn } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -65,8 +65,19 @@ export const PromoterAssignment = ({ photos, promoters, onPhotosUpdate }: Promot
     return 'Péssimo';
   };
 
-  const photosWithoutPromoter = photos.filter(p => !p.promoter);
-  const photosWithPromoter = photos.filter(p => p.promoter);
+  const photosWithoutPromoter = useMemo(() => 
+    photos.filter(p => !p.promoter), 
+    [photos]
+  );
+  const photosWithPromoter = useMemo(() => 
+    photos.filter(p => p.promoter), 
+    [photos]
+  );
+  
+  const promotersWithPhotos = useMemo(() => 
+    promoters.filter(promoter => photosWithPromoter.some(p => p.promoter === promoter.name)),
+    [promoters, photosWithPromoter]
+  );
 
   return (
     <div className="space-y-6">
@@ -170,13 +181,15 @@ export const PromoterAssignment = ({ photos, promoters, onPhotosUpdate }: Promot
                     </button>
 
                     {/* Photo */}
-                    <div className="aspect-square bg-muted rounded-lg overflow-hidden border border-border">
-                      <img 
-                        src={photo.url} 
-                        alt={photo.name}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
+                     <div className="aspect-square bg-muted rounded-lg overflow-hidden border border-border">
+                       <img 
+                         src={photo.url} 
+                         alt={photo.name}
+                         className="w-full h-full object-cover"
+                         loading="lazy"
+                         decoding="async"
+                       />
+                     </div>
 
                     {/* Photo name */}
                     <div className="mt-2 text-xs text-center truncate px-1">
@@ -198,11 +211,15 @@ export const PromoterAssignment = ({ photos, promoters, onPhotosUpdate }: Promot
           </CardHeader>
           <CardContent>
             <div className="space-y-6">
-              {promoters
-                .filter(promoter => photosWithPromoter.some(p => p.promoter === promoter.name))
-                .map(promoter => {
-                  const promoterPhotos = photosWithPromoter.filter(p => p.promoter === promoter.name);
-                  const avgScore = promoterPhotos.reduce((sum, p) => sum + (p.evaluation?.score || 10), 0) / promoterPhotos.length;
+              {promotersWithPhotos.map(promoter => {
+                  const promoterPhotos = useMemo(() => 
+                    photosWithPromoter.filter(p => p.promoter === promoter.name),
+                    [photosWithPromoter, promoter.name]
+                  );
+                  const avgScore = useMemo(() => 
+                    promoterPhotos.reduce((sum, p) => sum + (p.evaluation?.score || 10), 0) / promoterPhotos.length,
+                    [promoterPhotos]
+                  );
                   
                   return (
                     <div key={promoter.name}>
@@ -257,13 +274,15 @@ export const PromoterAssignment = ({ photos, promoters, onPhotosUpdate }: Promot
                               </button>
 
                               {/* Photo */}
-                              <div className="aspect-square bg-muted rounded-lg overflow-hidden border border-border">
-                                <img 
-                                  src={photo.url} 
-                                  alt={photo.name}
-                                  className="w-full h-full object-cover"
-                                />
-                              </div>
+                               <div className="aspect-square bg-muted rounded-lg overflow-hidden border border-border">
+                                 <img 
+                                   src={photo.url} 
+                                   alt={photo.name}
+                                   className="w-full h-full object-cover"
+                                   loading="lazy"
+                                   decoding="async"
+                                 />
+                               </div>
 
                               {/* Photo name */}
                               <div className="mt-2 text-xs text-center truncate px-1">

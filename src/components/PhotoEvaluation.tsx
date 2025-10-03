@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, Check, RotateCcw, Eye, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -54,11 +54,14 @@ export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEva
     removePhoto: 'Delete'
   });
   
-  const PHOTOS_PER_PAGE = 100; // Show 100 photos per page for large batches
+  const PHOTOS_PER_PAGE = 50; // Optimized for performance
   const totalPages = Math.ceil(photos.length / PHOTOS_PER_PAGE);
   const startIndex = currentPage * PHOTOS_PER_PAGE;
   const endIndex = Math.min(startIndex + PHOTOS_PER_PAGE, photos.length);
-  const currentPagePhotos = photos.slice(startIndex, endIndex);
+  const currentPagePhotos = useMemo(() => 
+    photos.slice(startIndex, endIndex), 
+    [photos, startIndex, endIndex]
+  );
   const relativePhotoIndex = currentPhotoIndex - startIndex;
 
   const toggleCriterion = useCallback((criterionName: string) => {
@@ -214,7 +217,8 @@ export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEva
     );
   }
 
-  const currentPhoto = photos[currentPhotoIndex];
+  
+  const currentPhoto = useMemo(() => photos[currentPhotoIndex], [photos, currentPhotoIndex]);
   if (!currentPhoto) {
     // Fix index if out of bounds
     if (currentPhotoIndex > 0) {
@@ -224,9 +228,12 @@ export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEva
   }
   
   const currentCriteria = evaluations[currentPhoto.id] || [];
-  const currentScore = 10 - CRITERIA.reduce((total, criterion) => {
-    return currentCriteria.includes(criterion.name) ? total + criterion.penalty : total;
-  }, 0);
+  const currentScore = useMemo(() => 
+    10 - CRITERIA.reduce((total, criterion) => {
+      return currentCriteria.includes(criterion.name) ? total + criterion.penalty : total;
+    }, 0),
+    [currentCriteria]
+  );
 
   const evaluatedCount = Object.keys(evaluations).length;
   const progress = (evaluatedCount / photos.length) * 100;
@@ -369,6 +376,8 @@ export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEva
                 src={currentPhoto.url}
                 alt={currentPhoto.name}
                 className="w-full h-full object-contain"
+                loading="eager"
+                decoding="async"
               />
             </div>
           </CardContent>

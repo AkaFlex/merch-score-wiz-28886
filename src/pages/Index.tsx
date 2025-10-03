@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, memo } from 'react';
 import { Upload, FileImage, BarChart3, Download, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -48,30 +48,29 @@ const Index = () => {
     }
   }, [photos, promoters]);
 
-  const handlePhotosUpload = (uploadedPhotos: Photo[]) => {
+  const handlePhotosUpload = useCallback((uploadedPhotos: Photo[]) => {
     setPhotos(uploadedPhotos);
     setCurrentStep('evaluate');
-  };
+  }, [setPhotos, setCurrentStep]);
 
-  const handlePhotosUpdate = (updatedPhotos: Photo[]) => {
+  const handlePhotosUpdate = useCallback((updatedPhotos: Photo[]) => {
     setPhotos(updatedPhotos);
-  };
+  }, [setPhotos]);
 
-  const handleEvaluationComplete = (evaluatedPhotos: Photo[]) => {
+  const handleEvaluationComplete = useCallback((evaluatedPhotos: Photo[]) => {
     setPhotos(evaluatedPhotos);
     setCurrentStep('assign');
-  };
+  }, [setPhotos, setCurrentStep]);
 
-  const handleAssignmentComplete = () => {
+  const handleAssignmentComplete = useCallback(() => {
     setCurrentStep('report');
-  };
+  }, [setCurrentStep]);
 
-  const goToStep = (step: 'upload' | 'evaluate' | 'assign' | 'report') => {
-    // Allow free navigation between all steps
+  const goToStep = useCallback((step: 'upload' | 'evaluate' | 'assign' | 'report') => {
     setCurrentStep(step);
-  };
+  }, [setCurrentStep]);
 
-  const goBack = () => {
+  const goBack = useCallback(() => {
     switch (currentStep) {
       case 'evaluate':
         setCurrentStep('upload');
@@ -83,14 +82,14 @@ const Index = () => {
         setCurrentStep('assign');
         break;
     }
-  };
+  }, [currentStep, setCurrentStep]);
 
-  const resetProcess = () => {
+  const resetProcess = useCallback(() => {
     clearPhotos();
     clearPromoters();
     clearStep();
     toast.success('Dados limpos com sucesso');
-  };
+  }, [clearPhotos, clearPromoters, clearStep]);
 
   const renderStep = () => {
     switch (currentStep) {
