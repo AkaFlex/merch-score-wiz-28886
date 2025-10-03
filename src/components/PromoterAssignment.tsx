@@ -97,11 +97,17 @@ export const PromoterAssignment = ({ photos, promoters, onPhotosUpdate }: Promot
                   <SelectValue placeholder="Selecione um promotor..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {promoters.map((promoter) => (
-                    <SelectItem key={promoter.name} value={promoter.name}>
-                      {promoter.name} - {promoter.leader}
-                    </SelectItem>
-                  ))}
+                  {promoters.length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground text-center">
+                      Nenhum promotor disponível
+                    </div>
+                  ) : (
+                    promoters.map((promoter) => (
+                      <SelectItem key={promoter.name} value={promoter.name}>
+                        {promoter.name} - {promoter.leader}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>

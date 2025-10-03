@@ -36,6 +36,14 @@ const Index = () => {
   const [promoters, setPromoters, clearPromoters] = useLocalStorage<Promoter[]>('merchandising-promoters', []);
   const [currentStep, setCurrentStep, clearStep] = useLocalStorage<'upload' | 'evaluate' | 'assign' | 'report'>('merchandising-step', 'upload');
   
+  // Debug log
+  useEffect(() => {
+    console.log('Current promoters count:', promoters.length);
+    if (promoters.length > 0) {
+      console.log('Sample promoter:', promoters[0]);
+    }
+  }, [promoters]);
+  
   // Auto-save notification
   useEffect(() => {
     const hasData = photos.length > 0 || promoters.length > 0;

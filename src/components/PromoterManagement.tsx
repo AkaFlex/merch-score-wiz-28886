@@ -110,9 +110,10 @@ export const PromoterManagement = ({ promoters, onPromotersChange }: PromoterMan
   // Initialize with default promoters if empty
   useEffect(() => {
     if (promoters.length === 0) {
+      console.log('Initializing default promoters');
       onPromotersChange(DEFAULT_PROMOTERS);
     }
-  }, [promoters.length, onPromotersChange]);
+  }, []);
 
   const addPromoter = () => {
     if (newPromoterName.trim() && newPromoterLeader && !promoters.find(p => p.name === newPromoterName.trim())) {
