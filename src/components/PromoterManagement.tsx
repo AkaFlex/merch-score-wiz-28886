@@ -107,11 +107,13 @@ export const PromoterManagement = ({ promoters, onPromotersChange }: PromoterMan
   const [editingPromoter, setEditingPromoter] = useState<string | null>(null);
   const [editLeader, setEditLeader] = useState('');
 
-  // Initialize with default promoters if empty
+  // Initialize with default promoters if empty - run once on mount
   useEffect(() => {
     if (promoters.length === 0) {
-      console.log('Initializing default promoters');
-      onPromotersChange(DEFAULT_PROMOTERS);
+      const timer = setTimeout(() => {
+        onPromotersChange(DEFAULT_PROMOTERS);
+      }, 100);
+      return () => clearTimeout(timer);
     }
   }, []);
 

@@ -11,6 +11,7 @@ import { ReportSummary } from '@/components/ReportSummary';
 import { OfflineIndicator } from '@/components/OfflineIndicator';
 import { DataBackup } from '@/components/DataBackup';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { fixPromotersData } from '@/utils/fixLocalStorage';
 import { toast } from 'sonner';
 
 export interface Promoter {
@@ -31,18 +32,15 @@ export interface Photo {
 }
 
 const Index = () => {
+  // Fix corrupted localStorage data before initializing state
+  useEffect(() => {
+    fixPromotersData();
+  }, []);
+  
   // Persistent state using localStorage
   const [photos, setPhotos, clearPhotos] = useLocalStorage<Photo[]>('merchandising-photos', []);
   const [promoters, setPromoters, clearPromoters] = useLocalStorage<Promoter[]>('merchandising-promoters', []);
   const [currentStep, setCurrentStep, clearStep] = useLocalStorage<'upload' | 'evaluate' | 'assign' | 'report'>('merchandising-step', 'upload');
-  
-  // Debug log
-  useEffect(() => {
-    console.log('Current promoters count:', promoters.length);
-    if (promoters.length > 0) {
-      console.log('Sample promoter:', promoters[0]);
-    }
-  }, [promoters]);
   
   // Auto-save notification
   useEffect(() => {
@@ -96,7 +94,13 @@ const Index = () => {
     clearPhotos();
     clearPromoters();
     clearStep();
+    // Force clear localStorage to fix corrupted data
+    window.localStorage.removeItem('merchandising-promoters');
+    window.localStorage.removeItem('merchandising-photos');
+    window.localStorage.removeItem('merchandising-step');
     toast.success('Dados limpos com sucesso');
+    // Reload to reinitialize
+    window.location.reload();
   }, [clearPhotos, clearPromoters, clearStep]);
 
   const renderStep = () => {

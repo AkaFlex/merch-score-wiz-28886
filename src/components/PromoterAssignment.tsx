@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { UserCheck, Check, X, ZoomIn } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,6 +17,11 @@ export const PromoterAssignment = ({ photos, promoters, onPhotosUpdate }: Promot
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
   const [selectedPromoter, setSelectedPromoter] = useState('');
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
+
+  // Debug - log promoters when component mounts or promoters change
+  useEffect(() => {
+    console.log('PromoterAssignment - Promoters:', promoters.length, promoters);
+  }, [promoters]);
 
   const togglePhotoSelection = (photoId: string) => {
     setSelectedPhotos(prev =>
