@@ -27,7 +27,7 @@ export const PromoterAssignment = ({ photos, promoters, onPhotosUpdate }: Promot
   };
 
   const selectAll = () => {
-    setSelectedPhotos(photos.map(p => p.id));
+    setSelectedPhotos(photosWithoutPromoter.map(p => p.id));
   };
 
   const selectNone = () => {

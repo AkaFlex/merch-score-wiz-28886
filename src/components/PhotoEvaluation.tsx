@@ -54,7 +54,7 @@ export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEva
     removePhoto: 'Delete'
   });
   
-  const PHOTOS_PER_PAGE = 50; // Show 50 photos per page for large batches
+  const PHOTOS_PER_PAGE = 100; // Show 100 photos per page for large batches
   const totalPages = Math.ceil(photos.length / PHOTOS_PER_PAGE);
   const startIndex = currentPage * PHOTOS_PER_PAGE;
   const endIndex = Math.min(startIndex + PHOTOS_PER_PAGE, photos.length);
