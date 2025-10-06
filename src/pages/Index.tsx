@@ -1,265 +1,55 @@
-import { useState, useEffect, useCallback, memo } from 'react';
-import { Upload, FileImage, BarChart3, Download, Users } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { PhotoUpload } from '@/components/PhotoUpload';
-import { PhotoEvaluation } from '@/components/PhotoEvaluation';
-import { EvaluationReport } from '@/components/EvaluationReport';
-import { PromoterManagement } from '@/components/PromoterManagement';
-import { PromoterAssignment } from '@/components/PromoterAssignment';
-import { ReportSummary } from '@/components/ReportSummary';
-import { OfflineIndicator } from '@/components/OfflineIndicator';
-import { DataBackup } from '@/components/DataBackup';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { fixPromotersData } from '@/utils/fixLocalStorage';
-import { toast } from 'sonner';
+import { useState } from 'react';
+import { FileText } from 'lucide-react';
+import { PPTXUpload } from '@/components/PPTXUpload';
+import { ExtractedDataView } from '@/components/ExtractedDataView';
+import { ExtractedSlideData } from '@/types';
 
-export interface Promoter {
-  name: string;
-  leader: string;
-}
-
-export interface Photo {
-  id: string;
-  name: string;
-  url: string;
-  evaluation?: {
-    score: number;
-    criteria: string[];
-  };
-  promoter?: string;
-  leader?: string;
-}
+// Re-export types for backwards compatibility
+export type { Photo, Promoter } from '@/types';
 
 const Index = () => {
-  // Fix corrupted localStorage data before initializing state
-  useEffect(() => {
-    fixPromotersData();
-  }, []);
-  
-  // Persistent state using localStorage
-  const [photos, setPhotos, clearPhotos] = useLocalStorage<Photo[]>('merchandising-photos', []);
-  const [promoters, setPromoters, clearPromoters] = useLocalStorage<Promoter[]>('merchandising-promoters', []);
-  const [currentStep, setCurrentStep, clearStep] = useLocalStorage<'upload' | 'evaluate' | 'assign' | 'report'>('merchandising-step', 'upload');
-  
-  // Auto-save notification
-  useEffect(() => {
-    const hasData = photos.length > 0 || promoters.length > 0;
-    if (hasData) {
-      const savedMessage = 'Dados salvos automaticamente';
-      const timeoutId = setTimeout(() => {
-        // Silent save - only show toast on significant changes
-      }, 1000);
-      return () => clearTimeout(timeoutId);
+  const [extractedData, setExtractedData] = useState<ExtractedSlideData[]>([]);
+
+  const handleDataExtracted = (data: ExtractedSlideData[]) => {
+    setExtractedData(data);
+  };
+
+  const handleReset = () => {
+    setExtractedData([]);
+  };
+
+  const renderContent = () => {
+    if (extractedData.length > 0) {
+      return <ExtractedDataView data={extractedData} onReset={handleReset} />;
     }
-  }, [photos, promoters]);
-
-  const handlePhotosUpload = useCallback((uploadedPhotos: Photo[]) => {
-    setPhotos(uploadedPhotos);
-    setCurrentStep('evaluate');
-  }, [setPhotos, setCurrentStep]);
-
-  const handlePhotosUpdate = useCallback((updatedPhotos: Photo[]) => {
-    setPhotos(updatedPhotos);
-  }, [setPhotos]);
-
-  const handleEvaluationComplete = useCallback((evaluatedPhotos: Photo[]) => {
-    setPhotos(evaluatedPhotos);
-    setCurrentStep('assign');
-  }, [setPhotos, setCurrentStep]);
-
-  const handleAssignmentComplete = useCallback(() => {
-    setCurrentStep('report');
-  }, [setCurrentStep]);
-
-  const goToStep = useCallback((step: 'upload' | 'evaluate' | 'assign' | 'report') => {
-    setCurrentStep(step);
-  }, [setCurrentStep]);
-
-  const goBack = useCallback(() => {
-    switch (currentStep) {
-      case 'evaluate':
-        setCurrentStep('upload');
-        break;
-      case 'assign':
-        setCurrentStep('evaluate');
-        break;
-      case 'report':
-        setCurrentStep('assign');
-        break;
-    }
-  }, [currentStep, setCurrentStep]);
-
-  const resetProcess = useCallback(() => {
-    clearPhotos();
-    clearPromoters();
-    clearStep();
-    // Force clear localStorage to fix corrupted data
-    window.localStorage.removeItem('merchandising-promoters');
-    window.localStorage.removeItem('merchandising-photos');
-    window.localStorage.removeItem('merchandising-step');
-    toast.success('Dados limpos com sucesso');
-    // Reload to reinitialize
-    window.location.reload();
-  }, [clearPhotos, clearPromoters, clearStep]);
-
-  const renderStep = () => {
-    switch (currentStep) {
-      case 'upload':
-        return (
-          <PhotoUpload 
-            onPhotosUpload={handlePhotosUpload}
-            initialPhotos={photos}
-            onPhotosUpdate={handlePhotosUpdate}
-          />
-        );
-      case 'evaluate':
-        return (
-          <div className="space-y-6">
-            <div className="flex justify-start">
-              <Button variant="outline" onClick={goBack}>
-                ← Voltar para Upload
-              </Button>
-            </div>
-            <PhotoEvaluation 
-              photos={photos} 
-              onComplete={handleEvaluationComplete}
-              onPhotosUpdate={handlePhotosUpdate}
-            />
-          </div>
-        );
-      case 'assign':
-        return (
-          <div className="max-w-7xl mx-auto space-y-6">
-            <div className="flex justify-start">
-              <Button variant="outline" onClick={goBack}>
-                ← Voltar para Avaliação
-              </Button>
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="space-y-6">
-                <PromoterManagement
-                  promoters={promoters}
-                  onPromotersChange={setPromoters}
-                />
-                <DataBackup 
-                  photos={photos}
-                  promoters={promoters}
-                  onDataImport={({ photos: importedPhotos, promoters: importedPromoters }) => {
-                    setPhotos(importedPhotos);
-                    setPromoters(importedPromoters);
-                  }}
-                />
-              </div>
-              <div className="lg:col-span-2">
-                <ReportSummary photos={photos} />
-              </div>
-            </div>
-            <PromoterAssignment
-              photos={photos}
-              promoters={promoters}
-              onPhotosUpdate={setPhotos}
-            />
-            <div className="flex justify-center">
-              <Button 
-                onClick={handleAssignmentComplete}
-                size="lg"
-                className="bg-gradient-to-r from-primary to-primary-glow hover:from-primary/90 hover:to-primary-glow/90"
-              >
-                Gerar Relatório Final
-              </Button>
-            </div>
-          </div>
-        );
-      case 'report':
-        return (
-          <div className="space-y-6">
-            <div className="flex justify-start">
-              <Button variant="outline" onClick={goBack}>
-                ← Voltar para Atribuição
-              </Button>
-            </div>
-            <EvaluationReport photos={photos} onReset={resetProcess} />
-          </div>
-        );
-      default:
-        return null;
-    }
+    return <PPTXUpload onDataExtracted={handleDataExtracted} />;
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-secondary/30 to-background">
-      <OfflineIndicator />
-      <header className="border-b bg-card/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary-glow rounded-xl flex items-center justify-center">
-                <FileImage className="w-5 h-5 text-primary-foreground" />
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+      <div className="container mx-auto py-8 px-4">
+        <div className="max-w-6xl mx-auto space-y-8">
+          {/* Header */}
+          <div className="text-center space-y-4">
+            <div className="flex items-center justify-center gap-3">
+              <div className="p-3 bg-primary/10 rounded-lg">
+                <FileText className="h-8 w-8 text-primary" />
               </div>
-              <div>
-                <h1 className="text-xl font-bold text-foreground">Avaliador de Merchandising</h1>
-                <p className="text-sm text-muted-foreground">Sistema de Avaliação Automática</p>
-              </div>
+              <h1 className="text-4xl font-bold tracking-tight">
+                Processador de Slides de Merchandising
+              </h1>
             </div>
-            
-            {/* Progress Steps */}
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => goToStep('upload')}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-full font-medium transition-all hover:scale-105 shadow-md ${
-                  currentStep === 'upload' 
-                    ? 'bg-green-600 text-white shadow-lg scale-105' 
-                    : 'bg-green-500 text-white hover:bg-green-600'
-                }`}
-              >
-                <Upload className="w-4 h-4" />
-                <span>Upload</span>
-              </button>
-              
-              <button
-                onClick={() => goToStep('evaluate')}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-full font-medium transition-all hover:scale-105 shadow-md ${
-                  currentStep === 'evaluate' 
-                    ? 'bg-green-600 text-white shadow-lg scale-105' 
-                    : 'bg-green-500 text-white hover:bg-green-600'
-                }`}
-              >
-                <BarChart3 className="w-4 h-4" />
-                <span>Avaliar</span>
-              </button>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Faça upload de apresentações PowerPoint e extraia automaticamente os dados de merchandising
+            </p>
+          </div>
 
-              <button
-                onClick={() => goToStep('assign')}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-full font-medium transition-all hover:scale-105 shadow-md ${
-                  currentStep === 'assign' 
-                    ? 'bg-green-600 text-white shadow-lg scale-105' 
-                    : 'bg-green-500 text-white hover:bg-green-600'
-                }`}
-              >
-                <Users className="w-4 h-4" />
-                <span>Atribuir</span>
-              </button>
-              
-              <button
-                onClick={() => goToStep('report')}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-full font-medium transition-all hover:scale-105 shadow-md ${
-                  currentStep === 'report' 
-                    ? 'bg-blue-600 text-white shadow-lg scale-105' 
-                    : 'bg-blue-500 text-white hover:bg-blue-600'
-                }`}
-              >
-                <Download className="w-4 h-4" />
-                <span>Relatório</span>
-              </button>
-            </div>
+          {/* Main Content */}
+          <div className="animate-fade-in">
+            {renderContent()}
           </div>
         </div>
-      </header>
-
-      <main className="container mx-auto px-6 py-8">
-        {renderStep()}
-      </main>
+      </div>
     </div>
   );
 };

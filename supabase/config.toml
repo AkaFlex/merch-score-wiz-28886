@@ -1,0 +1,4 @@
+project_id = "bqecjzfaefdljfrjppvz"
+
+[functions.process-pptx]
+verify_jwt = false
