@@ -51,11 +51,11 @@ serve(async (req) => {
     const extractedData: ExtractedSlideData[] = [];
     
     // Pattern to find "Junco" followed by code and name
-    const juncoPattern = /Junco\s+(\d+)\s+-\s+([A-Z\s]+)/g;
-    // Pattern to find Colaborador
-    const colaboradorPattern = /Scala Colaborador:\s*\n?\s*Scala\s+([A-Z\s]+)/gi;
+    const juncoPattern = /Junco\s+(\d+)\s+-\s+([A-Z\s]+?)(?=\n|Comemore)/gi;
+    // Pattern to find Colaborador (after "Scala Colaborador:" and "Scala")
+    const colaboradorPattern = /Scala Colaborador:\s*\n?\s*Scala\s+([A-Z\s]+?)(?=\n|Superior)/gi;
     // Pattern to find Superior
-    const superiorPattern = /Superior:\s*\n?\s*([A-Z\s]+)/gi;
+    const superiorPattern = /Superior:\s*\n?\s*([A-Z\s]+?)(?=\n|Data)/gi;
     // Pattern to find Data
     const dataPattern = /Data do Envio:\s*\n?\s*(\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2}:\d{2})/gi;
     
