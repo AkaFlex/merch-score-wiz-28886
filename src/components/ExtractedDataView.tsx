@@ -82,17 +82,16 @@ export const ExtractedDataView = ({ data, onReset, onStartEvaluation }: Extracte
   };
 
   const startPhotoEvaluation = () => {
-    // Convert extracted data to photos for evaluation
-    // In a real scenario, images would be extracted from the PPTX
-    const mockPhotos = data.map((item, index) => ({
+    // Use the real images from the PPTX slides
+    const photosWithImages = data.map((item, index) => ({
       id: `photo-${index}`,
       name: `${item.nomeLoja} - Slide ${item.slideNumber}`,
-      url: `https://placehold.co/800x600/e2e8f0/1e293b?text=Slide+${item.slideNumber}`,
+      url: item.imageUrl || `https://placehold.co/800x600/e2e8f0/1e293b?text=Slide+${item.slideNumber}`,
       promoter: item.colaborador,
       leader: item.superior,
     }));
     
-    onStartEvaluation(mockPhotos);
+    onStartEvaluation(photosWithImages);
   };
 
   return (
