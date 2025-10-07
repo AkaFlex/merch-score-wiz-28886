@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Download, Table as TableIcon, Search } from 'lucide-react';
+import { Download, Table as TableIcon, Search, FileText, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -18,9 +18,10 @@ import * as XLSX from 'xlsx';
 interface ExtractedDataViewProps {
   data: ExtractedSlideData[];
   onReset: () => void;
+  onStartEvaluation: (photos: any[]) => void;
 }
 
-export const ExtractedDataView = ({ data, onReset }: ExtractedDataViewProps) => {
+export const ExtractedDataView = ({ data, onReset, onStartEvaluation }: ExtractedDataViewProps) => {
   const [searchTerm, setSearchTerm] = useState('');
   const { toast } = useToast();
 
@@ -80,6 +81,20 @@ export const ExtractedDataView = ({ data, onReset }: ExtractedDataViewProps) => 
     }
   };
 
+  const startPhotoEvaluation = () => {
+    // Convert extracted data to photos for evaluation
+    // In a real scenario, images would be extracted from the PPTX
+    const mockPhotos = data.map((item, index) => ({
+      id: `photo-${index}`,
+      name: `${item.nomeLoja} - Slide ${item.slideNumber}`,
+      url: `https://placehold.co/800x600/e2e8f0/1e293b?text=Slide+${item.slideNumber}`,
+      promoter: item.colaborador,
+      leader: item.superior,
+    }));
+    
+    onStartEvaluation(mockPhotos);
+  };
+
   return (
     <div className="space-y-4">
       <Card>
@@ -90,12 +105,20 @@ export const ExtractedDataView = ({ data, onReset }: ExtractedDataViewProps) => 
               Dados Extraídos ({data.length} slides)
             </CardTitle>
             <div className="flex gap-2">
-              <Button onClick={exportToExcel} variant="default">
+              <Button onClick={exportToExcel} variant="outline">
                 <Download className="h-4 w-4 mr-2" />
-                Exportar para Excel
+                Exportar Excel
+              </Button>
+              <Button 
+                onClick={startPhotoEvaluation}
+                className="bg-gradient-to-r from-primary to-primary-glow hover:from-primary/90 hover:to-primary-glow/90"
+              >
+                <FileText className="h-4 w-4 mr-2" />
+                Iniciar Avaliação
               </Button>
               <Button onClick={onReset} variant="outline">
-                Novo Upload
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Resetar
               </Button>
             </div>
           </div>
