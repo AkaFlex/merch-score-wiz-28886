@@ -148,6 +148,8 @@ serve(async (req) => {
     for (let i = 0; i < imageUrls.length; i++) {
       const imageUrl = imageUrls[i];
       
+      console.log(`Processing slide ${i + 1} with AI vision: ${imageUrl}`);
+      
       try {
         const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
           method: 'POST',
@@ -156,26 +158,27 @@ serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'google/gemini-2.5-flash',
+            model: 'google/gemini-2.5-pro',
             messages: [
-              {
-                role: 'system',
-                content: `Você é um assistente especializado em extrair dados de slides de merchandising.
-Extraia as seguintes informações EXATAS do slide:
-- Código Parceiro: número que aparece depois de "Junco" (ex: "Junco 225699")
-- Nome da Loja: texto que aparece logo após o código (ex: "CARVALHO RUI BARBOSA")
-- Colaborador: nome completo que aparece após "Scala Colaborador:" e "Scala" (pode ter múltiplas palavras)
-- Superior: nome completo que aparece após "Superior:"
-- Data do Envio: data e hora que aparece após "Data do Envio:" no formato DD/MM/YYYY HH:MM:SS
-
-IMPORTANTE: Retorne APENAS um JSON object válido com esses campos. Se algum campo não for encontrado, retorne string vazia.`
-              },
               {
                 role: 'user',
                 content: [
                   {
                     type: 'text',
-                    text: 'Extraia os dados deste slide de merchandising:'
+                    text: `Analise esta imagem de um slide de merchandising e extraia as seguintes informações EXATAS:
+
+1. Código Parceiro: Procure por "Junco" seguido de números (exemplo: "Junco 225699" → extraia apenas "225699")
+2. Nome da Loja: O nome da loja geralmente aparece próximo ao código (exemplo: "CARVALHO RUI BARBOSA")
+3. Colaborador/Promotor: Procure por "Scala Colaborador:" ou apenas "Scala" seguido de um nome completo
+4. Superior/Líder: Procure por "Superior:" seguido de um nome completo
+5. Data do Envio: Procure por "Data do Envio:" seguido de data e hora no formato DD/MM/YYYY HH:MM:SS
+
+INSTRUÇÕES IMPORTANTES:
+- Leia TODO o texto visível na imagem com atenção
+- Extraia os valores EXATOS conforme aparecem no slide
+- Se não encontrar alguma informação, retorne string vazia para esse campo
+- Seja preciso e extraia apenas os dados solicitados
+- Não invente ou suponha informações que não estão visíveis`
                   },
                   {
                     type: 'image_url',
@@ -190,15 +193,30 @@ IMPORTANTE: Retorne APENAS um JSON object válido com esses campos. Se algum cam
               type: "function",
               function: {
                 name: "extract_slide_data",
-                description: "Extrai dados estruturados de um slide",
+                description: "Extrai dados estruturados de um slide de merchandising",
                 parameters: {
                   type: "object",
                   properties: {
-                    codigoParceiro: { type: "string", description: "Código numérico do parceiro após 'Junco'" },
-                    nomeLoja: { type: "string", description: "Nome da loja após o código" },
-                    colaborador: { type: "string", description: "Nome completo do colaborador após 'Scala Colaborador:' e 'Scala'" },
-                    superior: { type: "string", description: "Nome completo do superior após 'Superior:'" },
-                    dataEnvio: { type: "string", description: "Data e hora após 'Data do Envio:'" }
+                    codigoParceiro: { 
+                      type: "string", 
+                      description: "Apenas o número que aparece após 'Junco' (sem o texto 'Junco')"
+                    },
+                    nomeLoja: { 
+                      type: "string", 
+                      description: "Nome completo da loja"
+                    },
+                    colaborador: { 
+                      type: "string", 
+                      description: "Nome completo do colaborador/promotor que aparece após 'Scala Colaborador:' ou 'Scala'"
+                    },
+                    superior: { 
+                      type: "string", 
+                      description: "Nome completo do superior/líder que aparece após 'Superior:'"
+                    },
+                    dataEnvio: { 
+                      type: "string", 
+                      description: "Data e hora completa no formato DD/MM/YYYY HH:MM:SS que aparece após 'Data do Envio:'"
+                    }
                   },
                   required: ["codigoParceiro", "nomeLoja", "colaborador", "superior", "dataEnvio"]
                 }
@@ -209,24 +227,36 @@ IMPORTANTE: Retorne APENAS um JSON object válido com esses campos. Se algum cam
         });
 
         if (!aiResponse.ok) {
-          console.error(`AI API Error for slide ${i + 1}:`, aiResponse.status);
+          const errorText = await aiResponse.text();
+          console.error(`AI API Error for slide ${i + 1}:`, aiResponse.status, errorText);
           continue;
         }
 
         const aiData = await aiResponse.json();
+        console.log(`AI Response for slide ${i + 1}:`, JSON.stringify(aiData, null, 2));
+        
         const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
         
         if (toolCall && toolCall.function?.arguments) {
           const slideData = JSON.parse(toolCall.function.arguments);
+          console.log(`Extracted data for slide ${i + 1}:`, JSON.stringify(slideData, null, 2));
+          
           extractedData.push({
             ...slideData,
             slideNumber: i + 1,
             imageUrl: imageUrl
           });
-          console.log(`Extracted data from slide ${i + 1}`);
+          console.log(`Successfully extracted and stored data from slide ${i + 1}`);
+        } else {
+          console.error(`No tool call found in AI response for slide ${i + 1}`);
+          console.error(`Full AI response:`, JSON.stringify(aiData, null, 2));
         }
       } catch (error) {
         console.error(`Error processing slide ${i + 1}:`, error);
+        if (error instanceof Error) {
+          console.error(`Error details: ${error.message}`);
+          console.error(`Error stack: ${error.stack}`);
+        }
       }
     }
 
