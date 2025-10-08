@@ -176,118 +176,122 @@ serve(async (req) => {
     }
 
     console.log('Calling Lovable AI to extract data from text...');
+    console.log(`Processing ${slideTexts.length} slides in parallel batches...`);
     
     const extractedData: ExtractedSlideData[] = [];
     
-    // Process each slide text with AI
-    for (let i = 0; i < slideTexts.length; i++) {
-      const slideText = slideTexts[i];
-      const imageUrl = imageUrls[i] || ''; // May have fewer images than slides
+    // Process slides in parallel batches for better performance
+    const BATCH_SIZE = 10; // Process 10 slides at a time
+    const batches = [];
+    
+    for (let i = 0; i < slideTexts.length; i += BATCH_SIZE) {
+      batches.push(slideTexts.slice(i, Math.min(i + BATCH_SIZE, slideTexts.length)));
+    }
+    
+    console.log(`Created ${batches.length} batches of up to ${BATCH_SIZE} slides each`);
+    
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      const batch = batches[batchIndex];
+      const startSlideIndex = batchIndex * BATCH_SIZE;
       
-      console.log(`Processing slide ${i + 1} with AI text analysis`);
-      console.log(`Slide ${i + 1} text:`, slideText);
+      console.log(`Processing batch ${batchIndex + 1}/${batches.length} (slides ${startSlideIndex + 1}-${startSlideIndex + batch.length})`);
       
-      try {
-        const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'google/gemini-2.5-flash',
-            messages: [
-              {
-                role: 'user',
-                content: `Analise este texto extraído de um slide de merchandising e extraia as seguintes informações EXATAS:
+      // Process all slides in the batch in parallel
+      const batchPromises = batch.map(async (slideText, relativeIndex) => {
+        const absoluteIndex = startSlideIndex + relativeIndex;
+        const slideNumber = absoluteIndex + 1;
+        const imageUrl = imageUrls[absoluteIndex] || '';
+        
+        try {
+          console.log(`Processing slide ${slideNumber} with AI text analysis`);
+          
+          const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              model: 'google/gemini-2.5-flash', // Faster model for large batches
+              messages: [
+                {
+                  role: 'user',
+                  content: `Analise este texto extraído de um slide de merchandising e extraia as seguintes informações EXATAS:
 
 TEXTO DO SLIDE:
 ${slideText}
 
 INSTRUÇÕES DE EXTRAÇÃO:
-1. Código Parceiro: Procure por "Junco" seguido de números (exemplo: "Junco 225699" → extraia apenas "225699")
-2. Nome da Loja: O nome da loja geralmente aparece próximo ao código (exemplo: "CARVALHO RUI BARBOSA")
-3. Colaborador/Promotor: Procure por "Scala Colaborador:" ou apenas "Scala" seguido de um nome completo
-4. Superior/Líder: Procure por "Superior:" seguido de um nome completo
-5. Data do Envio: Procure por "Data do Envio:" seguido de data e hora no formato DD/MM/YYYY HH:MM:SS
+1. Código Parceiro: Procure por números após "Junco" ou no início do texto (exemplo: "225699")
+2. Nome da Loja: Nome da loja após o código (exemplo: "CARVALHO RUI BARBOSA")
+3. Colaborador: Nome após "Colaborador:" ou "Scala Colaborador:"
+4. Superior: Nome após "Superior:"
+5. Data do Envio: Data e hora após "Data do Envio:" no formato DD/MM/YYYY HH:MM:SS
 
-REGRAS IMPORTANTES:
-- Extraia os valores EXATOS conforme aparecem no texto
-- Se não encontrar alguma informação, retorne string vazia para esse campo
-- Seja preciso e extraia apenas os dados solicitados
-- Não invente ou suponha informações que não estão no texto
-- Remova prefixos como "Junco" do código parceiro (retorne apenas o número)`
-              }
-            ],
-            tools: [{
-              type: "function",
-              function: {
-                name: "extract_slide_data",
-                description: "Extrai dados estruturados de um slide de merchandising",
-                parameters: {
-                  type: "object",
-                  properties: {
-                    codigoParceiro: { 
-                      type: "string", 
-                      description: "Apenas o número que aparece após 'Junco' (sem o texto 'Junco')"
-                    },
-                    nomeLoja: { 
-                      type: "string", 
-                      description: "Nome completo da loja"
-                    },
-                    colaborador: { 
-                      type: "string", 
-                      description: "Nome completo do colaborador/promotor que aparece após 'Scala Colaborador:' ou 'Scala'"
-                    },
-                    superior: { 
-                      type: "string", 
-                      description: "Nome completo do superior/líder que aparece após 'Superior:'"
-                    },
-                    dataEnvio: { 
-                      type: "string", 
-                      description: "Data e hora completa no formato DD/MM/YYYY HH:MM:SS que aparece após 'Data do Envio:'"
-                    }
-                  },
-                  required: ["codigoParceiro", "nomeLoja", "colaborador", "superior", "dataEnvio"]
+IMPORTANTE: Extraia apenas os valores, sem prefixos. Se não encontrar, retorne string vazia.`
                 }
-              }
-            }],
-            tool_choice: { type: "function", function: { name: "extract_slide_data" } }
-          }),
-        });
-
-        if (!aiResponse.ok) {
-          const errorText = await aiResponse.text();
-          console.error(`AI API Error for slide ${i + 1}:`, aiResponse.status, errorText);
-          continue;
-        }
-
-        const aiData = await aiResponse.json();
-        console.log(`AI Response for slide ${i + 1}:`, JSON.stringify(aiData, null, 2));
-        
-        const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
-        
-        if (toolCall && toolCall.function?.arguments) {
-          const slideData = JSON.parse(toolCall.function.arguments);
-          console.log(`Extracted data for slide ${i + 1}:`, JSON.stringify(slideData, null, 2));
-          
-          extractedData.push({
-            ...slideData,
-            slideNumber: i + 1,
-            imageUrl: imageUrl
+              ],
+              tools: [{
+                type: "function",
+                function: {
+                  name: "extract_slide_data",
+                  description: "Extrai dados estruturados de um slide de merchandising",
+                  parameters: {
+                    type: "object",
+                    properties: {
+                      codigoParceiro: { type: "string", description: "Apenas o número do código" },
+                      nomeLoja: { type: "string", description: "Nome da loja" },
+                      colaborador: { type: "string", description: "Nome do colaborador" },
+                      superior: { type: "string", description: "Nome do superior" },
+                      dataEnvio: { type: "string", description: "Data e hora no formato DD/MM/YYYY HH:MM:SS" }
+                    },
+                    required: ["codigoParceiro", "nomeLoja", "colaborador", "superior", "dataEnvio"]
+                  }
+                }
+              }],
+              tool_choice: { type: "function", function: { name: "extract_slide_data" } }
+            }),
           });
-          console.log(`Successfully extracted and stored data from slide ${i + 1}`);
-        } else {
-          console.error(`No tool call found in AI response for slide ${i + 1}`);
-          console.error(`Full AI response:`, JSON.stringify(aiData, null, 2));
+
+          if (!aiResponse.ok) {
+            const errorText = await aiResponse.text();
+            console.error(`AI API Error for slide ${slideNumber}:`, aiResponse.status, errorText);
+            return null;
+          }
+
+          const aiData = await aiResponse.json();
+          const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
+          
+          if (toolCall && toolCall.function?.arguments) {
+            const slideData = JSON.parse(toolCall.function.arguments);
+            console.log(`✓ Extracted data for slide ${slideNumber}`);
+            
+            return {
+              ...slideData,
+              slideNumber,
+              imageUrl: imageUrl || `https://bqecjzfaefdljfrjppvz.supabase.co/storage/v1/object/public/slide-images/slide-${Date.now()}-${absoluteIndex}.jpg`
+            };
+          } else {
+            console.error(`No tool call found in AI response for slide ${slideNumber}`);
+            return null;
+          }
+        } catch (error) {
+          console.error(`Error processing slide ${slideNumber}:`, error);
+          return null;
         }
-      } catch (error) {
-        console.error(`Error processing slide ${i + 1}:`, error);
-        if (error instanceof Error) {
-          console.error(`Error details: ${error.message}`);
-          console.error(`Error stack: ${error.stack}`);
+      });
+      
+      // Wait for all slides in the batch to complete
+      const batchResults = await Promise.all(batchPromises);
+      
+      // Add successful results to extractedData
+      for (const result of batchResults) {
+        if (result) {
+          extractedData.push(result);
         }
       }
+      
+      console.log(`Batch ${batchIndex + 1}/${batches.length} completed. Total extracted: ${extractedData.length}/${slideTexts.length}`);
     }
 
     if (extractedData.length === 0) {

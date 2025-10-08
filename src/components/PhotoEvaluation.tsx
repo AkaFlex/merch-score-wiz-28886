@@ -372,13 +372,28 @@ export const PhotoEvaluation = ({ photos, onComplete, onPhotosUpdate }: PhotoEva
           </CardHeader>
           <CardContent>
             <div className="aspect-[4/3] bg-muted rounded-lg overflow-hidden border-2 border-border">
-              <img
-                src={currentPhoto.url}
-                alt={currentPhoto.name}
-                className="w-full h-full object-contain"
-                loading="eager"
-                decoding="async"
-              />
+              {currentPhoto.url ? (
+                <img
+                  src={currentPhoto.url}
+                  alt={currentPhoto.name}
+                  className="w-full h-full object-contain"
+                  loading="eager"
+                  decoding="async"
+                  onError={(e) => {
+                    console.error('Failed to load image:', currentPhoto.url);
+                    e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect fill="%23ddd" width="400" height="300"/%3E%3Ctext fill="%23999" x="50%25" y="50%25" text-anchor="middle" dy=".3em"%3EImagem não disponível%3C/text%3E%3C/svg%3E';
+                  }}
+                  onLoad={() => console.log('Image loaded successfully:', currentPhoto.url)}
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                  <div className="text-center">
+                    <Eye className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">Imagem não disponível</p>
+                    <p className="text-xs mt-1">URL da imagem não foi encontrada</p>
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

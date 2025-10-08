@@ -82,16 +82,27 @@ export const ExtractedDataView = ({ data, onReset, onStartEvaluation }: Extracte
   };
 
   const startPhotoEvaluation = () => {
-    // Use the real images from the PPTX slides
-    const photosWithImages = data.map((item, index) => ({
-      id: `photo-${index}`,
-      name: `${item.nomeLoja} - Slide ${item.slideNumber}`,
-      url: item.imageUrl || `https://placehold.co/800x600/e2e8f0/1e293b?text=Slide+${item.slideNumber}`,
-      promoter: item.colaborador,
-      leader: item.superior,
-    }));
+    console.log('Starting photo evaluation with data:', data);
     
-    onStartEvaluation(photosWithImages);
+    const photos = data.map((slide, index) => {
+      const photoUrl = slide.imageUrl || '';
+      console.log(`Slide ${slide.slideNumber}: imageUrl = "${photoUrl}"`);
+      
+      return {
+        id: `photo-${slide.slideNumber || index}`,
+        url: photoUrl,
+        name: `Slide ${slide.slideNumber || index + 1} - ${slide.nomeLoja}`,
+        storeCode: slide.codigoParceiro,
+        storeName: slide.nomeLoja,
+        promoter: slide.colaborador,
+        supervisor: slide.superior,
+        submissionDate: slide.dataEnvio,
+        slideNumber: slide.slideNumber || index + 1
+      };
+    });
+    
+    console.log('Photos prepared for evaluation:', photos);
+    onStartEvaluation(photos);
   };
 
   return (
