@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.74.0';
+import JSZip from 'https://esm.sh/jszip@3.10.1';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -17,60 +18,96 @@ interface ExtractedSlideData {
   imageUrl?: string;
 }
 
-// Helper to extract images from PPTX (PPTX is a ZIP file)
-async function extractImagesFromPPTX(arrayBuffer: ArrayBuffer): Promise<Uint8Array[]> {
-  const images: Uint8Array[] = [];
-  
+// Helper to extract text from PPTX slides (PPTX is a ZIP file)
+async function extractSlideTextFromPPTX(arrayBuffer: ArrayBuffer): Promise<string[]> {
   try {
-    // PPTX files are ZIP archives
-    // We'll look for image files in the ppt/media folder
-    const uint8Array = new Uint8Array(arrayBuffer);
+    const zip = new JSZip();
+    await zip.loadAsync(arrayBuffer);
     
-    // Find PNG/JPG signatures in the binary data
-    // PNG signature: 89 50 4E 47
-    // JPEG signature: FF D8 FF
+    const slideTexts: string[] = [];
+    const slideFiles: string[] = [];
     
-    let i = 0;
-    while (i < uint8Array.length - 4) {
-      // Check for JPEG signature
-      if (uint8Array[i] === 0xFF && uint8Array[i + 1] === 0xD8 && uint8Array[i + 2] === 0xFF) {
-        // Find end of JPEG (FF D9)
-        let end = i + 2;
-        while (end < uint8Array.length - 1) {
-          if (uint8Array[end] === 0xFF && uint8Array[end + 1] === 0xD9) {
-            end += 2;
-            break;
-          }
-          end++;
-        }
-        images.push(uint8Array.slice(i, end));
-        i = end;
+    // Find all slide XML files
+    zip.folder('ppt/slides')?.forEach((relativePath, file) => {
+      if (relativePath.match(/slide\d+\.xml$/)) {
+        slideFiles.push(relativePath);
       }
-      // Check for PNG signature
-      else if (uint8Array[i] === 0x89 && uint8Array[i + 1] === 0x50 && 
-               uint8Array[i + 2] === 0x4E && uint8Array[i + 3] === 0x47) {
-        // Find end of PNG (IEND chunk)
-        let end = i + 4;
-        while (end < uint8Array.length - 8) {
-          if (uint8Array[end] === 0x49 && uint8Array[end + 1] === 0x45 && 
-              uint8Array[end + 2] === 0x4E && uint8Array[end + 3] === 0x44) {
-            end += 8; // Include IEND chunk
-            break;
-          }
-          end++;
-        }
-        images.push(uint8Array.slice(i, end));
-        i = end;
-      }
-      else {
-        i++;
+    });
+    
+    // Sort slides by number
+    slideFiles.sort((a, b) => {
+      const numA = parseInt(a.match(/slide(\d+)\.xml$/)?.[1] || '0');
+      const numB = parseInt(b.match(/slide(\d+)\.xml$/)?.[1] || '0');
+      return numA - numB;
+    });
+    
+    console.log(`Found ${slideFiles.length} slides in PPTX`);
+    
+    // Extract text from each slide
+    for (const slideFile of slideFiles) {
+      const file = zip.file(`ppt/slides/${slideFile}`);
+      if (file) {
+        const content = await file.async('text');
+        // Extract text from XML - remove all tags and get just the text content
+        const textContent = content
+          .replace(/<a:t>/g, '') // Remove opening text tags
+          .replace(/<\/a:t>/g, '\n') // Replace closing text tags with newlines
+          .replace(/<[^>]+>/g, '') // Remove all other XML tags
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&amp;/g, '&')
+          .replace(/&quot;/g, '"')
+          .replace(/&apos;/g, "'")
+          .split('\n')
+          .map(line => line.trim())
+          .filter(line => line.length > 0)
+          .join('\n');
+        
+        slideTexts.push(textContent);
+        console.log(`Extracted text from slide ${slideTexts.length}:`, textContent.substring(0, 200));
       }
     }
     
-    console.log(`Found ${images.length} images in PPTX`);
+    return slideTexts;
+  } catch (error) {
+    console.error('Error extracting text from PPTX:', error);
+    return [];
+  }
+}
+
+// Helper to extract first image from PPTX for each slide (for visualization)
+async function extractSlideImagesFromPPTX(arrayBuffer: ArrayBuffer): Promise<Uint8Array[]> {
+  try {
+    const zip = new JSZip();
+    await zip.loadAsync(arrayBuffer);
+    
+    const images: Uint8Array[] = [];
+    
+    // Get all image files from ppt/media folder
+    const imageFiles: string[] = [];
+    zip.folder('ppt/media')?.forEach((relativePath, file) => {
+      if (relativePath.match(/\.(jpg|jpeg|png)$/i)) {
+        imageFiles.push(relativePath);
+      }
+    });
+    
+    console.log(`Found ${imageFiles.length} images in PPTX media folder`);
+    
+    // Sort and take first images (usually one per slide)
+    imageFiles.sort();
+    
+    for (const imageFile of imageFiles) {
+      const file = zip.file(`ppt/media/${imageFile}`);
+      if (file) {
+        const arrayBuffer = await file.async('arraybuffer');
+        images.push(new Uint8Array(arrayBuffer));
+      }
+    }
+    
+    console.log(`Extracted ${images.length} images for visualization`);
     return images;
   } catch (error) {
-    console.error('Error extracting images:', error);
+    console.error('Error extracting images from PPTX:', error);
     return [];
   }
 }
@@ -92,14 +129,12 @@ serve(async (req) => {
     console.log(`Processing file: ${file.name}, size: ${file.size} bytes`);
 
     const arrayBuffer = await file.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
     
-    // Extract text content
-    const decoder = new TextDecoder('utf-8', { fatal: false });
-    const fileContent = decoder.decode(uint8Array);
+    console.log('Extracting text from PPTX slides...');
+    const slideTexts = await extractSlideTextFromPPTX(arrayBuffer);
     
     console.log('Extracting images from PPTX...');
-    const images = await extractImagesFromPPTX(arrayBuffer);
+    const images = await extractSlideImagesFromPPTX(arrayBuffer);
     
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -140,15 +175,17 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    console.log('Calling Lovable AI to extract data from each slide...');
+    console.log('Calling Lovable AI to extract data from text...');
     
     const extractedData: ExtractedSlideData[] = [];
     
-    // Process each image with AI vision
-    for (let i = 0; i < imageUrls.length; i++) {
-      const imageUrl = imageUrls[i];
+    // Process each slide text with AI
+    for (let i = 0; i < slideTexts.length; i++) {
+      const slideText = slideTexts[i];
+      const imageUrl = imageUrls[i] || ''; // May have fewer images than slides
       
-      console.log(`Processing slide ${i + 1} with AI vision: ${imageUrl}`);
+      console.log(`Processing slide ${i + 1} with AI text analysis`);
+      console.log(`Slide ${i + 1} text:`, slideText);
       
       try {
         const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
@@ -158,35 +195,28 @@ serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'google/gemini-2.5-pro',
+            model: 'google/gemini-2.5-flash',
             messages: [
               {
                 role: 'user',
-                content: [
-                  {
-                    type: 'text',
-                    text: `Analise esta imagem de um slide de merchandising e extraia as seguintes informações EXATAS:
+                content: `Analise este texto extraído de um slide de merchandising e extraia as seguintes informações EXATAS:
 
+TEXTO DO SLIDE:
+${slideText}
+
+INSTRUÇÕES DE EXTRAÇÃO:
 1. Código Parceiro: Procure por "Junco" seguido de números (exemplo: "Junco 225699" → extraia apenas "225699")
 2. Nome da Loja: O nome da loja geralmente aparece próximo ao código (exemplo: "CARVALHO RUI BARBOSA")
 3. Colaborador/Promotor: Procure por "Scala Colaborador:" ou apenas "Scala" seguido de um nome completo
 4. Superior/Líder: Procure por "Superior:" seguido de um nome completo
 5. Data do Envio: Procure por "Data do Envio:" seguido de data e hora no formato DD/MM/YYYY HH:MM:SS
 
-INSTRUÇÕES IMPORTANTES:
-- Leia TODO o texto visível na imagem com atenção
-- Extraia os valores EXATOS conforme aparecem no slide
+REGRAS IMPORTANTES:
+- Extraia os valores EXATOS conforme aparecem no texto
 - Se não encontrar alguma informação, retorne string vazia para esse campo
 - Seja preciso e extraia apenas os dados solicitados
-- Não invente ou suponha informações que não estão visíveis`
-                  },
-                  {
-                    type: 'image_url',
-                    image_url: {
-                      url: imageUrl
-                    }
-                  }
-                ]
+- Não invente ou suponha informações que não estão no texto
+- Remova prefixos como "Junco" do código parceiro (retorne apenas o número)`
               }
             ],
             tools: [{
@@ -261,8 +291,10 @@ INSTRUÇÕES IMPORTANTES:
     }
 
     if (extractedData.length === 0) {
-      throw new Error('Nenhum dado foi extraído dos slides. Verifique se o arquivo está no formato correto.');
+      throw new Error('Nenhum dado foi extraído dos slides. Verifique se o arquivo contém slides com as informações esperadas (Código Parceiro, Nome da Loja, Colaborador, Superior, Data do Envio).');
     }
+    
+    console.log(`Successfully extracted data:`, JSON.stringify(extractedData, null, 2));
 
     console.log(`Successfully processed ${extractedData.length} slides`);
 
