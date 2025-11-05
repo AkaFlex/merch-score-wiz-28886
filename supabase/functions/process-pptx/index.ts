@@ -141,35 +141,50 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
-    // Upload images to storage and get URLs
+    // Upload images to storage and get URLs (in parallel batches for speed)
     const imageUrls: string[] = [];
-    for (let i = 0; i < images.length; i++) {
-      const image = images[i];
-      const filename = `slide-${Date.now()}-${i}.jpg`;
+    const IMAGE_BATCH_SIZE = 20;
+    
+    for (let i = 0; i < images.length; i += IMAGE_BATCH_SIZE) {
+      const batch = images.slice(i, Math.min(i + IMAGE_BATCH_SIZE, images.length));
       
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('slide-images')
-        .upload(filename, image, {
-          contentType: 'image/jpeg',
-          upsert: false
-        });
+      const uploadPromises = batch.map(async (image, batchIndex) => {
+        const absoluteIndex = i + batchIndex;
+        const timestamp = Date.now();
+        const filename = `slide-${timestamp}-${absoluteIndex}.jpg`;
+        
+        try {
+          const { error: uploadError } = await supabase.storage
+            .from('slide-images')
+            .upload(filename, image, {
+              contentType: 'image/jpeg',
+              upsert: false
+            });
+          
+          if (uploadError) {
+            console.error(`Error uploading image ${absoluteIndex}:`, uploadError);
+            return '';
+          }
+          
+          const { data: { publicUrl } } = supabase.storage
+            .from('slide-images')
+            .getPublicUrl(filename);
+          
+          console.log(`✓ Uploaded image ${absoluteIndex + 1}/${images.length}`);
+          return publicUrl;
+        } catch (error) {
+          console.error(`Failed to upload image ${absoluteIndex}:`, error);
+          return '';
+        }
+      });
       
-      if (uploadError) {
-        console.error(`Error uploading image ${i}:`, uploadError);
-        continue;
-      }
-      
-      const { data: { publicUrl } } = supabase.storage
-        .from('slide-images')
-        .getPublicUrl(filename);
-      
-      imageUrls.push(publicUrl);
-      console.log(`Uploaded image ${i + 1}/${images.length}: ${filename}`);
+      const batchUrls = await Promise.all(uploadPromises);
+      imageUrls.push(...batchUrls);
     }
     
-    console.log(`Successfully uploaded ${imageUrls.length} images`);
+    console.log(`Successfully uploaded ${imageUrls.filter(url => url).length}/${images.length} images`);
     
-    // Use Lovable AI to extract structured data with vision
+    // Use Lovable AI to extract structured data
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
       throw new Error('LOVABLE_API_KEY is not configured');
@@ -180,8 +195,8 @@ serve(async (req) => {
     
     const extractedData: ExtractedSlideData[] = [];
     
-    // Process slides in parallel batches for better performance
-    const BATCH_SIZE = 10; // Process 10 slides at a time
+    // Process slides in parallel batches - larger batches for huge files
+    const BATCH_SIZE = 20; // Process 20 slides at a time for faster processing
     const batches = [];
     
     for (let i = 0; i < slideTexts.length; i += BATCH_SIZE) {
@@ -212,23 +227,48 @@ serve(async (req) => {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              model: 'google/gemini-2.5-flash', // Faster model for large batches
+              model: 'google/gemini-2.5-flash',
               messages: [
                 {
                   role: 'user',
-                  content: `Analise este texto extraído de um slide de merchandising e extraia as seguintes informações EXATAS:
+                  content: `Você é um extrator de dados especializado em slides de merchandising. Analise o texto abaixo e extraia EXATAMENTE as informações solicitadas.
 
 TEXTO DO SLIDE:
 ${slideText}
 
-INSTRUÇÕES DE EXTRAÇÃO:
-1. Código Parceiro: Procure por números após "Junco" ou no início do texto (exemplo: "225699")
-2. Nome da Loja: Nome da loja após o código (exemplo: "CARVALHO RUI BARBOSA")
-3. Colaborador: Nome após "Colaborador:" ou "Scala Colaborador:"
-4. Superior: Nome após "Superior:"
-5. Data do Envio: Data e hora após "Data do Envio:" no formato DD/MM/YYYY HH:MM:SS
+REGRAS DE EXTRAÇÃO (SIGA RIGOROSAMENTE):
 
-IMPORTANTE: Extraia apenas os valores, sem prefixos. Se não encontrar, retorne string vazia.`
+1. Código Parceiro:
+   - Procure por "Junco" seguido de números (ex: "Junco 225699" → extrair "225699")
+   - Ou procure por "Código:" ou "Parceiro:" seguido de números
+   - SEMPRE extraia APENAS os dígitos numéricos, SEM prefixos ou texto
+   - Se houver múltiplos números, pegue o primeiro que aparece após "Junco" ou similar
+
+2. Nome da Loja:
+   - Procure o nome da loja que geralmente aparece após o código
+   - Exemplo: "225699 CARVALHO RUI BARBOSA" → extrair "CARVALHO RUI BARBOSA"
+   - Não inclua números ou códigos no nome da loja
+
+3. Colaborador:
+   - Procure por "Colaborador:", "Scala Colaborador:", "Promotor:" ou similar
+   - Extraia o nome completo que vem após esses termos
+   - Não inclua os prefixos no valor extraído
+
+4. Superior:
+   - Procure por "Superior:", "Líder:", "Gestor:" ou similar
+   - Extraia o nome completo que vem após esses termos
+   - Não inclua os prefixos no valor extraído
+
+5. Data do Envio:
+   - Procure por "Data do Envio:", "Data:", "Enviado em:" ou similar
+   - Formato esperado: DD/MM/YYYY HH:MM:SS ou DD/MM/YYYY
+   - Mantenha o formato original encontrado
+
+IMPORTANTE:
+- Extraia SOMENTE os valores, sem prefixos ou labels
+- Se não encontrar algum campo, retorne string vazia ("")
+- Seja PRECISO e não invente dados
+- O Código Parceiro deve ser APENAS números`
                 }
               ],
               tools: [{
@@ -239,11 +279,26 @@ IMPORTANTE: Extraia apenas os valores, sem prefixos. Se não encontrar, retorne 
                   parameters: {
                     type: "object",
                     properties: {
-                      codigoParceiro: { type: "string", description: "Apenas o número do código" },
-                      nomeLoja: { type: "string", description: "Nome da loja" },
-                      colaborador: { type: "string", description: "Nome do colaborador" },
-                      superior: { type: "string", description: "Nome do superior" },
-                      dataEnvio: { type: "string", description: "Data e hora no formato DD/MM/YYYY HH:MM:SS" }
+                      codigoParceiro: { 
+                        type: "string", 
+                        description: "APENAS os números do código, sem texto ou prefixos (ex: '225699')" 
+                      },
+                      nomeLoja: { 
+                        type: "string", 
+                        description: "Nome completo da loja, sem códigos numéricos" 
+                      },
+                      colaborador: { 
+                        type: "string", 
+                        description: "Nome completo do colaborador/promotor, sem prefixos" 
+                      },
+                      superior: { 
+                        type: "string", 
+                        description: "Nome completo do superior/líder, sem prefixos" 
+                      },
+                      dataEnvio: { 
+                        type: "string", 
+                        description: "Data e hora completa no formato encontrado (DD/MM/YYYY HH:MM:SS ou DD/MM/YYYY)" 
+                      }
                     },
                     required: ["codigoParceiro", "nomeLoja", "colaborador", "superior", "dataEnvio"]
                   }
@@ -264,12 +319,16 @@ IMPORTANTE: Extraia apenas os valores, sem prefixos. Se não encontrar, retorne 
           
           if (toolCall && toolCall.function?.arguments) {
             const slideData = JSON.parse(toolCall.function.arguments);
-            console.log(`✓ Extracted data for slide ${slideNumber}`);
+            console.log(`✓ Slide ${slideNumber} extracted:`, {
+              codigo: slideData.codigoParceiro?.substring(0, 10),
+              loja: slideData.nomeLoja?.substring(0, 20),
+              hasImage: !!imageUrl
+            });
             
             return {
               ...slideData,
               slideNumber,
-              imageUrl: imageUrl || `https://bqecjzfaefdljfrjppvz.supabase.co/storage/v1/object/public/slide-images/slide-${Date.now()}-${absoluteIndex}.jpg`
+              imageUrl: imageUrl || ''
             };
           } else {
             console.error(`No tool call found in AI response for slide ${slideNumber}`);
