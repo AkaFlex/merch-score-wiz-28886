@@ -139,48 +139,38 @@ async function extractRequiredImages(arrayBuffer: ArrayBuffer, slideImageMap: Ma
   }
 }
 
-serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
-  }
-
+// Background processing function
+async function processFileInBackground(jobId: string, supabase: any, arrayBuffer: ArrayBuffer) {
   try {
-    console.log('Starting PPTX processing...');
-    const formData = await req.formData();
-    const file = formData.get('file') as File;
-
-    if (!file) {
-      throw new Error('No file provided');
-    }
-
-    console.log(`Processing file: ${file.name}, size: ${file.size} bytes`);
-
-    const arrayBuffer = await file.arrayBuffer();
+    console.log(`[Job ${jobId}] Starting background processing...`);
     
-    console.log('Extracting text from PPTX slides...');
+    // Update status to processing
+    await supabase.from('pptx_processing_jobs').update({ status: 'processing' }).eq('id', jobId);
+    
+    console.log(`[Job ${jobId}] Extracting text from PPTX slides...`);
     const slideTexts = await extractSlideTextFromPPTX(arrayBuffer);
     
     if (slideTexts.length === 0) {
       throw new Error('Nenhum slide com texto foi encontrado no arquivo PPTX');
     }
     
-    console.log('Mapping slides to images...');
+    // Update total slides
+    await supabase.from('pptx_processing_jobs').update({ 
+      total_slides: slideTexts.length 
+    }).eq('id', jobId);
+    
+    console.log(`[Job ${jobId}] Mapping slides to images...`);
     const slideImageMap = await getSlideImageMapping(arrayBuffer);
     
-    console.log('Extracting required images from PPTX...');
+    console.log(`[Job ${jobId}] Extracting required images from PPTX...`);
     const slideImages = await extractRequiredImages(arrayBuffer, slideImageMap);
-    
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
     // Upload images to storage in parallel batches
     const imageUrlMap = new Map<number, string>();
-    const IMAGE_BATCH_SIZE = 30; // Increased batch size
+    const IMAGE_BATCH_SIZE = 30;
     const slideNumbers = Array.from(slideImages.keys());
     
-    console.log(`Uploading ${slideImages.size} images in batches of ${IMAGE_BATCH_SIZE}...`);
+    console.log(`[Job ${jobId}] Uploading ${slideImages.size} images in batches of ${IMAGE_BATCH_SIZE}...`);
     
     for (let i = 0; i < slideNumbers.length; i += IMAGE_BATCH_SIZE) {
       const batchSlideNums = slideNumbers.slice(i, Math.min(i + IMAGE_BATCH_SIZE, slideNumbers.length));
@@ -202,7 +192,7 @@ serve(async (req) => {
             });
           
           if (uploadError) {
-            console.error(`Error uploading image for slide ${slideNum}:`, uploadError);
+            console.error(`[Job ${jobId}] Error uploading image for slide ${slideNum}:`, uploadError);
             return { slideNum, url: '' };
           }
           
@@ -212,7 +202,7 @@ serve(async (req) => {
           
           return { slideNum, url: publicUrl };
         } catch (error) {
-          console.error(`Failed to upload image for slide ${slideNum}:`, error);
+          console.error(`[Job ${jobId}] Failed to upload image for slide ${slideNum}:`, error);
           return { slideNum, url: '' };
         }
       });
@@ -222,37 +212,33 @@ serve(async (req) => {
         if (url) imageUrlMap.set(slideNum, url);
       });
       
-      console.log(`✓ Uploaded batch ${Math.floor(i / IMAGE_BATCH_SIZE) + 1}/${Math.ceil(slideNumbers.length / IMAGE_BATCH_SIZE)} (${imageUrlMap.size}/${slideImages.size} successful)`);
+      console.log(`[Job ${jobId}] ✓ Uploaded batch ${Math.floor(i / IMAGE_BATCH_SIZE) + 1}/${Math.ceil(slideNumbers.length / IMAGE_BATCH_SIZE)}`);
     }
     
-    // Use Lovable AI to extract structured data
+    // Process slides with AI in batches
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
-
-    console.log('Calling Lovable AI to extract data from text...');
-    console.log(`Processing ${slideTexts.length} slides in parallel batches...`);
+    
+    console.log(`[Job ${jobId}] Processing ${slideTexts.length} slides in parallel batches...`);
     
     const extractedData: ExtractedSlideData[] = [];
-    
-    // Process slides in parallel batches - larger batches for huge files
-    const BATCH_SIZE = 20; // Process 20 slides at a time for faster processing
+    const BATCH_SIZE = 20;
     const batches = [];
     
     for (let i = 0; i < slideTexts.length; i += BATCH_SIZE) {
       batches.push(slideTexts.slice(i, Math.min(i + BATCH_SIZE, slideTexts.length)));
     }
     
-    console.log(`Created ${batches.length} batches of up to ${BATCH_SIZE} slides each`);
+    console.log(`[Job ${jobId}] Created ${batches.length} batches of up to ${BATCH_SIZE} slides each`);
     
     for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
       const batch = batches[batchIndex];
       const startSlideIndex = batchIndex * BATCH_SIZE;
       
-      console.log(`Processing batch ${batchIndex + 1}/${batches.length} (slides ${startSlideIndex + 1}-${startSlideIndex + batch.length})`);
+      console.log(`[Job ${jobId}] Processing batch ${batchIndex + 1}/${batches.length} (slides ${startSlideIndex + 1}-${startSlideIndex + batch.length})`);
       
-      // Process all slides in the batch in parallel
       const batchPromises = batch.map(async (slideText, relativeIndex) => {
         const absoluteIndex = startSlideIndex + relativeIndex;
         const slideNumber = absoluteIndex + 1;
@@ -349,7 +335,7 @@ IMPORTANTE:
 
           if (!aiResponse.ok) {
             const errorText = await aiResponse.text();
-            console.error(`AI API Error for slide ${slideNumber}:`, aiResponse.status, errorText);
+            console.error(`[Job ${jobId}] AI API Error for slide ${slideNumber}:`, aiResponse.status, errorText);
             return null;
           }
 
@@ -358,11 +344,6 @@ IMPORTANTE:
           
           if (toolCall && toolCall.function?.arguments) {
             const slideData = JSON.parse(toolCall.function.arguments);
-            console.log(`✓ Slide ${slideNumber} extracted:`, {
-              codigo: slideData.codigoParceiro?.substring(0, 10),
-              loja: slideData.nomeLoja?.substring(0, 20),
-              hasImage: !!imageUrl
-            });
             
             return {
               ...slideData,
@@ -370,41 +351,124 @@ IMPORTANTE:
               imageUrl: imageUrl || ''
             };
           } else {
-            console.error(`No tool call found in AI response for slide ${slideNumber}`);
+            console.error(`[Job ${jobId}] No tool call found in AI response for slide ${slideNumber}`);
             return null;
           }
         } catch (error) {
-          console.error(`Error processing slide ${slideNumber}:`, error);
+          console.error(`[Job ${jobId}] Error processing slide ${slideNumber}:`, error);
           return null;
         }
       });
       
-      // Wait for all slides in the batch to complete
       const batchResults = await Promise.all(batchPromises);
       
-      // Add successful results to extractedData
       for (const result of batchResults) {
         if (result) {
           extractedData.push(result);
         }
       }
       
-      console.log(`Batch ${batchIndex + 1}/${batches.length} completed. Total extracted: ${extractedData.length}/${slideTexts.length}`);
+      // Update progress
+      await supabase.from('pptx_processing_jobs').update({ 
+        processed_slides: extractedData.length 
+      }).eq('id', jobId);
+      
+      console.log(`[Job ${jobId}] Batch ${batchIndex + 1}/${batches.length} completed. Total extracted: ${extractedData.length}/${slideTexts.length}`);
     }
 
     if (extractedData.length === 0) {
-      throw new Error('Nenhum dado foi extraído dos slides. Verifique se o arquivo contém slides com as informações esperadas (Código Parceiro, Nome da Loja, Colaborador, Superior, Data do Envio).');
+      throw new Error('Nenhum dado foi extraído dos slides. Verifique se o arquivo contém slides com as informações esperadas.');
     }
     
-    console.log(`Successfully extracted data:`, JSON.stringify(extractedData, null, 2));
+    // Update job as completed
+    await supabase.from('pptx_processing_jobs').update({
+      status: 'completed',
+      extracted_data: extractedData,
+      completed_at: new Date().toISOString()
+    }).eq('id', jobId);
+    
+    console.log(`[Job ${jobId}] Successfully completed processing ${extractedData.length} slides`);
+    
+  } catch (error) {
+    console.error(`[Job ${jobId}] Error in background processing:`, error);
+    
+    // Update job as failed
+    await supabase.from('pptx_processing_jobs').update({
+      status: 'failed',
+      error_message: error instanceof Error ? error.message : 'Unknown error',
+      completed_at: new Date().toISOString()
+    }).eq('id', jobId);
+  }
+}
 
-    console.log(`Successfully processed ${extractedData.length} slides`);
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
 
+  try {
+    console.log('Starting PPTX processing...');
+    const formData = await req.formData();
+    const file = formData.get('file') as File;
+
+    if (!file) {
+      throw new Error('No file provided');
+    }
+
+    console.log(`Processing file: ${file.name}, size: ${file.size} bytes`);
+
+    const arrayBuffer = await file.arrayBuffer();
+    
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
+    // Save file to storage
+    const timestamp = Date.now();
+    const storagePath = `uploads/${timestamp}-${file.name}`;
+    
+    console.log(`Saving file to storage: ${storagePath}`);
+    const { error: uploadError } = await supabase.storage
+      .from('slide-images')
+      .upload(storagePath, new Uint8Array(arrayBuffer), {
+        contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        upsert: false
+      });
+    
+    if (uploadError) {
+      throw new Error(`Failed to save file: ${uploadError.message}`);
+    }
+    
+    // Create processing job
+    const { data: job, error: jobError } = await supabase
+      .from('pptx_processing_jobs')
+      .insert({
+        file_name: file.name,
+        file_size: file.size,
+        storage_path: storagePath,
+        status: 'pending'
+      })
+      .select()
+      .single();
+    
+    if (jobError || !job) {
+      throw new Error(`Failed to create job: ${jobError?.message}`);
+    }
+    
+    console.log(`Created job ${job.id} for file ${file.name}`);
+    
+    // Start background processing (fire and forget)
+    processFileInBackground(job.id, supabase, arrayBuffer).catch((error) => {
+      console.error(`[Job ${job.id}] Fatal error in background processing:`, error);
+    });
+    
+    // Return immediately with job ID
     return new Response(
       JSON.stringify({
         success: true,
-        data: extractedData,
-        totalSlides: extractedData.length
+        jobId: job.id,
+        message: 'Processamento iniciado em background. Use o jobId para verificar o progresso.'
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

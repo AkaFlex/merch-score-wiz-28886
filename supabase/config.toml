@@ -2,3 +2,6 @@ project_id = "bqecjzfaefdljfrjppvz"
 
 [functions.process-pptx]
 verify_jwt = false
+
+[functions.check-job-status]
+verify_jwt = false
