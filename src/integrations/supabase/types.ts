@@ -14,7 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      pptx_processing_jobs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          extracted_data: Json | null
+          file_name: string
+          file_size: number
+          id: string
+          processed_slides: number | null
+          status: string
+          storage_path: string
+          total_slides: number | null
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          extracted_data?: Json | null
+          file_name: string
+          file_size: number
+          id?: string
+          processed_slides?: number | null
+          status?: string
+          storage_path: string
+          total_slides?: number | null
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          extracted_data?: Json | null
+          file_name?: string
+          file_size?: number
+          id?: string
+          processed_slides?: number | null
+          status?: string
+          storage_path?: string
+          total_slides?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
