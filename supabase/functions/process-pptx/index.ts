@@ -75,40 +75,67 @@ async function extractSlideTextFromPPTX(arrayBuffer: ArrayBuffer): Promise<strin
   }
 }
 
-// Helper to extract first image from PPTX for each slide (for visualization)
-async function extractSlideImagesFromPPTX(arrayBuffer: ArrayBuffer): Promise<Uint8Array[]> {
+// Helper to extract slide relationships to match images to slides
+async function getSlideImageMapping(arrayBuffer: ArrayBuffer): Promise<Map<number, string>> {
   try {
     const zip = new JSZip();
     await zip.loadAsync(arrayBuffer);
     
-    const images: Uint8Array[] = [];
+    const slideImageMap = new Map<number, string>();
     
-    // Get all image files from ppt/media folder
-    const imageFiles: string[] = [];
-    zip.folder('ppt/media')?.forEach((relativePath, file) => {
-      if (relativePath.match(/\.(jpg|jpeg|png)$/i)) {
-        imageFiles.push(relativePath);
+    // Check slide relationships to find which image belongs to which slide
+    const slideFiles: Array<{num: number, file: string}> = [];
+    zip.folder('ppt/slides/_rels')?.forEach((relativePath, file) => {
+      const match = relativePath.match(/slide(\d+)\.xml\.rels$/);
+      if (match) {
+        slideFiles.push({num: parseInt(match[1]), file: relativePath});
       }
     });
     
-    console.log(`Found ${imageFiles.length} images in PPTX media folder`);
+    slideFiles.sort((a, b) => a.num - b.num);
     
-    // Sort and take first images (usually one per slide)
-    imageFiles.sort();
-    
-    for (const imageFile of imageFiles) {
-      const file = zip.file(`ppt/media/${imageFile}`);
+    // Parse each slide's relationships to find the first image
+    for (const slideFile of slideFiles) {
+      const file = zip.file(`ppt/slides/_rels/${slideFile.file}`);
       if (file) {
-        const arrayBuffer = await file.async('arraybuffer');
-        images.push(new Uint8Array(arrayBuffer));
+        const content = await file.async('text');
+        // Find first image relationship (usually Target="../media/image1.jpeg")
+        const imageMatch = content.match(/Target="\.\.\/media\/([^"]+\.(jpg|jpeg|png))"/i);
+        if (imageMatch) {
+          slideImageMap.set(slideFile.num, imageMatch[1]);
+        }
       }
     }
     
-    console.log(`Extracted ${images.length} images for visualization`);
+    console.log(`Mapped ${slideImageMap.size} slides to images`);
+    return slideImageMap;
+  } catch (error) {
+    console.error('Error mapping slide images:', error);
+    return new Map();
+  }
+}
+
+// Helper to extract only required images (one per slide)
+async function extractRequiredImages(arrayBuffer: ArrayBuffer, slideImageMap: Map<number, string>): Promise<Map<number, Uint8Array>> {
+  try {
+    const zip = new JSZip();
+    await zip.loadAsync(arrayBuffer);
+    
+    const images = new Map<number, Uint8Array>();
+    
+    for (const [slideNum, imageName] of slideImageMap.entries()) {
+      const file = zip.file(`ppt/media/${imageName}`);
+      if (file) {
+        const arrayBuffer = await file.async('arraybuffer');
+        images.set(slideNum, new Uint8Array(arrayBuffer));
+      }
+    }
+    
+    console.log(`Extracted ${images.size} slide images`);
     return images;
   } catch (error) {
-    console.error('Error extracting images from PPTX:', error);
-    return [];
+    console.error('Error extracting images:', error);
+    return new Map();
   }
 }
 
@@ -133,25 +160,38 @@ serve(async (req) => {
     console.log('Extracting text from PPTX slides...');
     const slideTexts = await extractSlideTextFromPPTX(arrayBuffer);
     
-    console.log('Extracting images from PPTX...');
-    const images = await extractSlideImagesFromPPTX(arrayBuffer);
+    if (slideTexts.length === 0) {
+      throw new Error('Nenhum slide com texto foi encontrado no arquivo PPTX');
+    }
+    
+    console.log('Mapping slides to images...');
+    const slideImageMap = await getSlideImageMapping(arrayBuffer);
+    
+    console.log('Extracting required images from PPTX...');
+    const slideImages = await extractRequiredImages(arrayBuffer, slideImageMap);
     
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
-    // Upload images to storage and get URLs (in parallel batches for speed)
-    const imageUrls: string[] = [];
-    const IMAGE_BATCH_SIZE = 20;
+    // Upload images to storage in parallel batches
+    const imageUrlMap = new Map<number, string>();
+    const IMAGE_BATCH_SIZE = 30; // Increased batch size
+    const slideNumbers = Array.from(slideImages.keys());
     
-    for (let i = 0; i < images.length; i += IMAGE_BATCH_SIZE) {
-      const batch = images.slice(i, Math.min(i + IMAGE_BATCH_SIZE, images.length));
+    console.log(`Uploading ${slideImages.size} images in batches of ${IMAGE_BATCH_SIZE}...`);
+    
+    for (let i = 0; i < slideNumbers.length; i += IMAGE_BATCH_SIZE) {
+      const batchSlideNums = slideNumbers.slice(i, Math.min(i + IMAGE_BATCH_SIZE, slideNumbers.length));
       
-      const uploadPromises = batch.map(async (image, batchIndex) => {
-        const absoluteIndex = i + batchIndex;
+      const uploadPromises = batchSlideNums.map(async (slideNum) => {
+        const image = slideImages.get(slideNum);
+        if (!image) return { slideNum, url: '' };
+        
         const timestamp = Date.now();
-        const filename = `slide-${timestamp}-${absoluteIndex}.jpg`;
+        const random = Math.floor(Math.random() * 10000);
+        const filename = `slide-${timestamp}-${random}-${slideNum}.jpg`;
         
         try {
           const { error: uploadError } = await supabase.storage
@@ -162,27 +202,28 @@ serve(async (req) => {
             });
           
           if (uploadError) {
-            console.error(`Error uploading image ${absoluteIndex}:`, uploadError);
-            return '';
+            console.error(`Error uploading image for slide ${slideNum}:`, uploadError);
+            return { slideNum, url: '' };
           }
           
           const { data: { publicUrl } } = supabase.storage
             .from('slide-images')
             .getPublicUrl(filename);
           
-          console.log(`✓ Uploaded image ${absoluteIndex + 1}/${images.length}`);
-          return publicUrl;
+          return { slideNum, url: publicUrl };
         } catch (error) {
-          console.error(`Failed to upload image ${absoluteIndex}:`, error);
-          return '';
+          console.error(`Failed to upload image for slide ${slideNum}:`, error);
+          return { slideNum, url: '' };
         }
       });
       
-      const batchUrls = await Promise.all(uploadPromises);
-      imageUrls.push(...batchUrls);
+      const batchResults = await Promise.all(uploadPromises);
+      batchResults.forEach(({ slideNum, url }) => {
+        if (url) imageUrlMap.set(slideNum, url);
+      });
+      
+      console.log(`✓ Uploaded batch ${Math.floor(i / IMAGE_BATCH_SIZE) + 1}/${Math.ceil(slideNumbers.length / IMAGE_BATCH_SIZE)} (${imageUrlMap.size}/${slideImages.size} successful)`);
     }
-    
-    console.log(`Successfully uploaded ${imageUrls.filter(url => url).length}/${images.length} images`);
     
     // Use Lovable AI to extract structured data
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
@@ -215,11 +256,9 @@ serve(async (req) => {
       const batchPromises = batch.map(async (slideText, relativeIndex) => {
         const absoluteIndex = startSlideIndex + relativeIndex;
         const slideNumber = absoluteIndex + 1;
-        const imageUrl = imageUrls[absoluteIndex] || '';
+        const imageUrl = imageUrlMap.get(slideNumber) || '';
         
         try {
-          console.log(`Processing slide ${slideNumber} with AI text analysis`);
-          
           const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
             method: 'POST',
             headers: {
