@@ -408,16 +408,22 @@ serve(async (req) => {
 
   try {
     console.log('Starting PPTX processing...');
-    const formData = await req.formData();
-    const file = formData.get('file') as File;
+    const body = await req.json();
+    const { fileName, fileSize, fileContent } = body;
 
-    if (!file) {
+    if (!fileName || !fileContent) {
       throw new Error('No file provided');
     }
 
-    console.log(`Processing file: ${file.name}, size: ${file.size} bytes`);
+    console.log(`Processing file: ${fileName}, size: ${fileSize} bytes`);
 
-    const arrayBuffer = await file.arrayBuffer();
+    // Decode base64 to ArrayBuffer
+    const binaryString = atob(fileContent);
+    const bytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+    }
+    const arrayBuffer = bytes.buffer;
     
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -426,12 +432,12 @@ serve(async (req) => {
     
     // Save file to storage
     const timestamp = Date.now();
-    const storagePath = `uploads/${timestamp}-${file.name}`;
+    const storagePath = `uploads/${timestamp}-${fileName}`;
     
     console.log(`Saving file to storage: ${storagePath}`);
     const { error: uploadError } = await supabase.storage
       .from('slide-images')
-      .upload(storagePath, new Uint8Array(arrayBuffer), {
+      .upload(storagePath, bytes, {
         contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
         upsert: false
       });
@@ -444,8 +450,8 @@ serve(async (req) => {
     const { data: job, error: jobError } = await supabase
       .from('pptx_processing_jobs')
       .insert({
-        file_name: file.name,
-        file_size: file.size,
+        file_name: fileName,
+        file_size: fileSize,
         storage_path: storagePath,
         status: 'pending'
       })
@@ -456,7 +462,7 @@ serve(async (req) => {
       throw new Error(`Failed to create job: ${jobError?.message}`);
     }
     
-    console.log(`Created job ${job.id} for file ${file.name}`);
+    console.log(`Created job ${job.id} for file ${fileName}`);
     
     // Start background processing (fire and forget)
     processFileInBackground(job.id, supabase, arrayBuffer).catch((error) => {

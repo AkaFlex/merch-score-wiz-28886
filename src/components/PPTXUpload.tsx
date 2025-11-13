@@ -92,11 +92,18 @@ export const PPTXUpload = ({ onDataExtracted }: PPTXUploadProps) => {
     try {
       console.log('Uploading PPTX file:', file.name);
       
-      const formData = new FormData();
-      formData.append('file', file);
+      // Convert file to base64
+      const arrayBuffer = await file.arrayBuffer();
+      const base64 = btoa(
+        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+      );
 
       const { data, error } = await supabase.functions.invoke('process-pptx', {
-        body: formData,
+        body: {
+          fileName: file.name,
+          fileSize: file.size,
+          fileContent: base64,
+        },
       });
 
       if (error) {
