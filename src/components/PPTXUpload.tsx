@@ -15,6 +15,7 @@ export const PPTXUpload = ({ onDataExtracted }: PPTXUploadProps) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [fileName, setFileName] = useState<string>('');
   const [jobId, setJobId] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [jobStatus, setJobStatus] = useState<{
     status: string;
     totalSlides?: number;
@@ -88,11 +89,12 @@ export const PPTXUpload = ({ onDataExtracted }: PPTXUploadProps) => {
     setFileName(file.name);
     setIsProcessing(true);
     setJobStatus(null);
+    setUploadProgress(0);
 
     try {
       console.log('Uploading PPTX file:', file.name);
       
-      // Upload directly to storage first
+      // Upload directly to storage with progress tracking
       const timestamp = Date.now();
       const storagePath = `uploads/${timestamp}-${file.name}`;
       
@@ -100,16 +102,41 @@ export const PPTXUpload = ({ onDataExtracted }: PPTXUploadProps) => {
         title: "Enviando arquivo",
         description: "Fazendo upload para o servidor...",
       });
+
+      // Create chunks for progress simulation (Supabase doesn't support native progress yet)
+      const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
+      const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
       
-      const { error: uploadError } = await supabase.storage
+      // Upload the file
+      const uploadPromise = supabase.storage
         .from('slide-images')
         .upload(storagePath, file, {
           contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-          upsert: false
+          upsert: false,
         });
 
+      // Simulate progress (since Supabase doesn't provide native upload progress)
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 90) return prev; // Stop at 90% until upload completes
+          return prev + (100 - prev) * 0.1;
+        });
+      }, 500);
+
+      const { error: uploadError, data: uploadData } = await uploadPromise;
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+
       if (uploadError) {
-        throw new Error(`Falha no upload: ${uploadError.message}`);
+        console.error('Upload error:', uploadError);
+        
+        // Provide more specific error messages
+        let errorMessage = uploadError.message;
+        if (uploadError.message.includes('Failed to fetch')) {
+          errorMessage = 'Timeout ao enviar arquivo muito grande. Tente um arquivo menor ou verifique sua conexão.';
+        }
+        
+        throw new Error(`Falha no upload: ${errorMessage}`);
       }
 
       console.log('File uploaded to storage, starting processing...');
@@ -132,6 +159,7 @@ export const PPTXUpload = ({ onDataExtracted }: PPTXUploadProps) => {
 
       if (data.success && data.jobId) {
         setJobId(data.jobId);
+        setUploadProgress(0); // Reset upload progress
         toast({
           title: "Processamento iniciado",
           description: "O arquivo está sendo processado em background. Aguarde...",
@@ -148,6 +176,7 @@ export const PPTXUpload = ({ onDataExtracted }: PPTXUploadProps) => {
         variant: "destructive",
       });
       setIsProcessing(false);
+      setUploadProgress(0);
       setFileName('');
     }
   };
@@ -169,7 +198,19 @@ export const PPTXUpload = ({ onDataExtracted }: PPTXUploadProps) => {
           <div className="border-2 border-dashed rounded-lg p-8 text-center">
             {isProcessing ? (
               <div className="space-y-4">
-                {jobStatus?.status === 'pending' ? (
+                {uploadProgress > 0 && uploadProgress < 100 ? (
+                  <>
+                    <Upload className="h-12 w-12 mx-auto animate-pulse text-primary" />
+                    <p className="text-sm font-medium">Enviando arquivo...</p>
+                    <p className="text-xs text-muted-foreground">{fileName}</p>
+                    <div className="space-y-2 max-w-md mx-auto">
+                      <Progress value={uploadProgress} className="w-full" />
+                      <p className="text-xs text-muted-foreground">
+                        {Math.round(uploadProgress)}% enviado
+                      </p>
+                    </div>
+                  </>
+                ) : jobStatus?.status === 'pending' ? (
                   <>
                     <Clock className="h-12 w-12 mx-auto animate-pulse text-primary" />
                     <p className="text-sm font-medium">Iniciando processamento...</p>
