@@ -409,42 +409,18 @@ serve(async (req) => {
   try {
     console.log('Starting PPTX processing...');
     const body = await req.json();
-    const { fileName, fileSize, fileContent } = body;
+    const { fileName, fileSize, storagePath } = body;
 
-    if (!fileName || !fileContent) {
-      throw new Error('No file provided');
+    if (!fileName || !storagePath) {
+      throw new Error('No file information provided');
     }
 
-    console.log(`Processing file: ${fileName}, size: ${fileSize} bytes`);
-
-    // Decode base64 to ArrayBuffer
-    const binaryString = atob(fileContent);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-    const arrayBuffer = bytes.buffer;
+    console.log(`Processing file: ${fileName}, size: ${fileSize} bytes, path: ${storagePath}`);
     
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    
-    // Save file to storage
-    const timestamp = Date.now();
-    const storagePath = `uploads/${timestamp}-${fileName}`;
-    
-    console.log(`Saving file to storage: ${storagePath}`);
-    const { error: uploadError } = await supabase.storage
-      .from('slide-images')
-      .upload(storagePath, bytes, {
-        contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-        upsert: false
-      });
-    
-    if (uploadError) {
-      throw new Error(`Failed to save file: ${uploadError.message}`);
-    }
     
     // Create processing job
     const { data: job, error: jobError } = await supabase
@@ -463,6 +439,19 @@ serve(async (req) => {
     }
     
     console.log(`Created job ${job.id} for file ${fileName}`);
+    
+    // Download file from storage for processing
+    console.log(`Downloading file from storage: ${storagePath}`);
+    const { data: fileData, error: downloadError } = await supabase.storage
+      .from('slide-images')
+      .download(storagePath);
+    
+    if (downloadError || !fileData) {
+      throw new Error(`Failed to download file: ${downloadError?.message}`);
+    }
+    
+    const arrayBuffer = await fileData.arrayBuffer();
+    console.log(`File downloaded successfully, size: ${arrayBuffer.byteLength} bytes`);
     
     // Start background processing (fire and forget)
     processFileInBackground(job.id, supabase, arrayBuffer).catch((error) => {

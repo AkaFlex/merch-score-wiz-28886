@@ -92,17 +92,34 @@ export const PPTXUpload = ({ onDataExtracted }: PPTXUploadProps) => {
     try {
       console.log('Uploading PPTX file:', file.name);
       
-      // Convert file to base64
-      const arrayBuffer = await file.arrayBuffer();
-      const base64 = btoa(
-        new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
-      );
+      // Upload directly to storage first
+      const timestamp = Date.now();
+      const storagePath = `uploads/${timestamp}-${file.name}`;
+      
+      toast({
+        title: "Enviando arquivo",
+        description: "Fazendo upload para o servidor...",
+      });
+      
+      const { error: uploadError } = await supabase.storage
+        .from('slide-images')
+        .upload(storagePath, file, {
+          contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+          upsert: false
+        });
 
+      if (uploadError) {
+        throw new Error(`Falha no upload: ${uploadError.message}`);
+      }
+
+      console.log('File uploaded to storage, starting processing...');
+
+      // Now invoke the edge function with just the storage path
       const { data, error } = await supabase.functions.invoke('process-pptx', {
         body: {
           fileName: file.name,
           fileSize: file.size,
-          fileContent: base64,
+          storagePath: storagePath,
         },
       });
 
